@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -10,21 +10,31 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-import { Card } from 'antd';
+import { Card, Typography } from 'antd';
 import { isEqual } from 'lodash';
 import React, { FC, Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHistory } from 'react-router-dom';
+import {
+  ANNOUNCEMENT_BG,
+  ANNOUNCEMENT_BORDER,
+  GLOBAL_BORDER,
+  TASK_BORDER,
+} from '../../../constants/Feeds.constants';
 import {
   Post,
+  Thread,
   ThreadTaskStatus,
   ThreadType,
 } from '../../../generated/entity/feed/thread';
 import { getFeedListWithRelativeDays } from '../../../utils/FeedUtils';
-import AssigneeList from '../../common/AssigneeList/AssigneeList';
-import { leftPanelAntCardStyle } from '../../containers/PageLayout';
+import { getTaskDetailPath } from '../../../utils/TasksUtils';
+import { OwnerLabel } from '../../common/OwnerLabel/OwnerLabel.component';
 import ActivityFeedCard from '../ActivityFeedCard/ActivityFeedCard';
 import FeedCardFooter from '../ActivityFeedCard/FeedCardFooter/FeedCardFooter';
 import ActivityFeedEditor from '../ActivityFeedEditor/ActivityFeedEditor';
-import FeedListSeparator from '../ActivityFeedList/FeedListSeparator';
+import FeedListSeparator from '../FeedListSeparator/FeedListSeparator';
+import AnnouncementBadge from '../Shared/AnnouncementBadge';
 import TaskBadge from '../Shared/TaskBadge';
 import { ActivityThreadListProp } from './ActivityThreadPanel.interface';
 
@@ -38,6 +48,8 @@ const ActivityThreadList: FC<ActivityThreadListProp> = ({
   onConfirmation,
   updateThreadHandler,
 }) => {
+  const { t } = useTranslation();
+  const history = useHistory();
   const { updatedFeedList: updatedThreads, relativeDays } =
     getFeedListWithRelativeDays(threads);
 
@@ -45,15 +57,16 @@ const ActivityThreadList: FC<ActivityThreadListProp> = ({
     onThreadIdSelect(selectedThreadId === id ? '' : id);
   };
 
+  const handleCardClick = (task: Thread, isTask: boolean) => {
+    isTask && history.push(getTaskDetailPath(task));
+  };
+
   return (
     <div className={className}>
       {relativeDays.map((d, i) => {
         return (
           <div data-testid={`thread${i}`} key={i}>
-            <FeedListSeparator
-              className="tw-relative tw-mt-1 tw-mb-3.5"
-              relativeDay={d}
-            />
+            <FeedListSeparator relativeDay={d} />
             {updatedThreads
               .filter((f) => f.relativeDay === d)
               .map((thread, index) => {
@@ -65,6 +78,7 @@ const ActivityThreadList: FC<ActivityThreadListProp> = ({
                   reactions: thread.reactions,
                 } as Post;
                 const isTask = isEqual(thread.type, ThreadType.Task);
+                const isAnnouncement = thread.type === ThreadType.Announcement;
                 const postLength = thread?.posts?.length || 0;
                 const replies = thread.postsCount ? thread.postsCount - 1 : 0;
                 const repliedUsers = [
@@ -82,57 +96,62 @@ const ActivityThreadList: FC<ActivityThreadListProp> = ({
                       className="ant-card-feed"
                       key={`${index} - card`}
                       style={{
-                        ...leftPanelAntCardStyle,
                         marginTop: '20px',
                         paddingTop: isTask ? '8px' : '',
                         border: isTask
-                          ? '1px solid #C6B5F6'
-                          : leftPanelAntCardStyle.border,
-                      }}>
+                          ? `1px solid ${TASK_BORDER}`
+                          : `1px solid ${
+                              isAnnouncement
+                                ? ANNOUNCEMENT_BORDER
+                                : GLOBAL_BORDER
+                            }`,
+                        background: isAnnouncement ? `${ANNOUNCEMENT_BG}` : '',
+                      }}
+                      onClick={() =>
+                        thread.task && handleCardClick(thread, isTask)
+                      }>
                       {isTask && (
                         <TaskBadge
                           status={thread.task?.status as ThreadTaskStatus}
                         />
                       )}
+                      {isAnnouncement && <AnnouncementBadge />}
                       <div data-testid="main-message">
                         <ActivityFeedCard
                           isEntityFeed
                           isThread
+                          announcementDetails={thread.announcement}
                           entityLink={thread.about}
                           feed={mainFeed}
                           feedType={thread.type || ThreadType.Conversation}
-                          taskDetails={thread.task}
+                          task={thread}
+                          threadId={thread.id}
                           updateThreadHandler={updateThreadHandler}
+                          onConfirmation={onConfirmation}
                           onReply={() => onThreadSelect(thread.id)}
                         />
                       </div>
                       {postLength > 0 ? (
                         <div data-testid="replies-container">
                           {postLength > 1 ? (
-                            <div className="tw-ml-9 tw-my-2">
-                              {Boolean(lastPost) && (
-                                <div className="tw-filter-seperator" />
-                              )}
-                              <div className="tw-flex tw-my-4">
-                                <FeedCardFooter
-                                  isFooterVisible
-                                  lastReplyTimeStamp={lastPost?.postTs}
-                                  repliedUsers={repliedUniqueUsersList}
-                                  replies={replies}
-                                  threadId={thread.id}
-                                  onThreadSelect={() =>
-                                    onThreadSelect(thread.id)
-                                  }
-                                />
-                              </div>
+                            <div className="m-l-lg">
+                              <FeedCardFooter
+                                isFooterVisible
+                                lastReplyTimeStamp={lastPost?.postTs}
+                                repliedUsers={repliedUniqueUsersList}
+                                replies={replies}
+                                threadId={thread.id}
+                                onThreadSelect={() => onThreadSelect(thread.id)}
+                              />
                             </div>
                           ) : null}
                           <div data-testid="latest-reply">
                             <ActivityFeedCard
                               isEntityFeed
-                              className="tw-ml-9"
+                              className="m-l-lg"
                               feed={lastPost as Post}
                               feedType={thread.type || ThreadType.Conversation}
+                              task={thread}
                               threadId={thread.id}
                               updateThreadHandler={updateThreadHandler}
                               onConfirmation={onConfirmation}
@@ -143,22 +162,15 @@ const ActivityThreadList: FC<ActivityThreadListProp> = ({
                       ) : null}
                       {selectedThreadId === thread.id ? (
                         <div data-testid="quick-reply-editor">
-                          <ActivityFeedEditor
-                            buttonClass="tw-mr-4"
-                            className="tw-ml-5 tw-mr-2 tw-mb-6"
-                            onSave={postFeed}
-                          />
+                          <ActivityFeedEditor onSave={postFeed} />
                         </div>
                       ) : null}
                       {thread.task && (
-                        <div className="tw-border-t tw-border-main tw-py-1">
-                          <span className="tw-text-grey-muted">
-                            Assignees:{' '}
-                          </span>
-                          <AssigneeList
-                            assignees={thread.task.assignees || []}
-                            className="tw-ml-0.5 tw-align-baseline tw-inline-flex tw-flex-wrap"
-                          />
+                        <div className="d-flex m-y-xs gap-2">
+                          <Typography.Text className="text-grey-muted">
+                            {t('label.assignee-plural')}:{' '}
+                          </Typography.Text>
+                          <OwnerLabel owners={thread.task.assignees} />
                         </div>
                       )}
                     </Card>

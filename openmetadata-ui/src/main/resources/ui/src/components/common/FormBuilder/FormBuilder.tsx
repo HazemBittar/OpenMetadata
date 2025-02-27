@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,191 +11,161 @@
  *  limitations under the License.
  */
 
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import Form, { FormProps } from '@rjsf/core';
+import { CheckOutlined } from '@ant-design/icons';
+import Form, { FormProps, IChangeEvent } from '@rjsf/core';
+import { Button } from 'antd';
 import classNames from 'classnames';
-import { isEmpty } from 'lodash';
 import { LoadingState } from 'Models';
-import React, { FunctionComponent, useState } from 'react';
+import React, { forwardRef, FunctionComponent, useMemo, useState } from 'react';
+import { ServiceCategory } from '../../../enums/service.enum';
 import { ConfigData } from '../../../interface/service.interface';
+import { transformErrors } from '../../../utils/formUtils';
 import { formatFormDataForRender } from '../../../utils/JSONSchemaFormUtils';
-import SVGIcons, { Icons } from '../../../utils/SvgUtils';
-import { Button } from '../../buttons/Button/Button';
-import { ArrayFieldTemplate } from '../../JSONSchemaTemplate/ArrayFieldTemplate';
-import { ObjectFieldTemplate } from '../../JSONSchemaTemplate/ObjectFieldTemplate';
-import Loader from '../../Loader/Loader';
+import { ArrayFieldTemplate } from '../Form/JSONSchema/JSONSchemaTemplate/ArrayFieldTemplate';
+import DescriptionFieldTemplate from '../Form/JSONSchema/JSONSchemaTemplate/DescriptionFieldTemplate';
+import { FieldErrorTemplate } from '../Form/JSONSchema/JSONSchemaTemplate/FieldErrorTemplate/FieldErrorTemplate';
+import { ObjectFieldTemplate } from '../Form/JSONSchema/JSONSchemaTemplate/ObjectFieldTemplate';
+import AsyncSelectWidget from '../Form/JSONSchema/JsonSchemaWidgets/AsyncSelectWidget';
+import PasswordWidget from '../Form/JSONSchema/JsonSchemaWidgets/PasswordWidget';
+import QueryBuilderWidget from '../Form/JSONSchema/JsonSchemaWidgets/QueryBuilderWidget/QueryBuilderWidget';
+import SelectWidget from '../Form/JSONSchema/JsonSchemaWidgets/SelectWidget';
+import Loader from '../Loader/Loader';
 
-interface Props extends FormProps<ConfigData> {
+export interface Props extends FormProps {
   okText: string;
+  isLoading?: boolean;
+  hideCancelButton?: boolean;
   cancelText: string;
+  serviceCategory: ServiceCategory;
   showFormHeader?: boolean;
   status?: LoadingState;
   onCancel?: () => void;
-  onTestConnection?: (formData: ConfigData) => Promise<void>;
+  useSelectWidget?: boolean;
 }
 
-const FormBuilder: FunctionComponent<Props> = ({
-  formData,
-  schema,
-  okText,
-  cancelText,
-  showFormHeader = false,
-  status = 'initial',
-  onCancel,
-  onSubmit,
-  onTestConnection,
-  uiSchema,
-  ...props
-}: Props) => {
-  let oForm: Form<ConfigData> | null;
-  const [localFormData, setLocalFormData] = useState<ConfigData | undefined>(
-    formatFormDataForRender(formData)
-  );
-  const [connectionTesting, setConnectionTesting] = useState<boolean>(false);
-  const [connectionTestingState, setConnectionTestingState] =
-    useState<LoadingState>('initial');
+const FormBuilder: FunctionComponent<Props> = forwardRef(
+  (
+    {
+      formData,
+      schema,
+      okText,
+      cancelText,
+      isLoading,
+      hideCancelButton = false,
+      showFormHeader = false,
+      status = 'initial',
+      onCancel,
+      onSubmit,
+      uiSchema,
+      onFocus,
+      useSelectWidget = false,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const isReadOnlyForm = useMemo(() => {
+      return !!props.readonly;
+    }, [props.readonly]);
 
-  const handleCancel = () => {
-    setLocalFormData(formatFormDataForRender(formData));
-    if (onCancel) {
-      onCancel();
-    }
-  };
+    const [localFormData, setLocalFormData] = useState<ConfigData | undefined>(
+      formatFormDataForRender(formData ?? {})
+    );
 
-  const handleSubmit = () => {
-    if (oForm?.submit) {
-      oForm.submit();
-    }
-  };
+    const widgets = {
+      PasswordWidget: PasswordWidget,
+      autoComplete: AsyncSelectWidget,
+      queryBuilder: QueryBuilderWidget,
+      ...(useSelectWidget && { SelectWidget: SelectWidget }),
+    };
 
-  const handleTestConnection = () => {
-    if (localFormData && onTestConnection) {
-      setConnectionTesting(true);
-      setConnectionTestingState('waiting');
-      onTestConnection(localFormData)
-        .then(() => {
-          setConnectionTestingState('success');
-        })
-        .catch(() => {
-          setConnectionTestingState('initial');
-        })
-        .finally(() => {
-          setConnectionTesting(false);
-        });
-    }
-  };
+    const handleCancel = () => {
+      setLocalFormData(formatFormDataForRender<ConfigData>(formData ?? {}));
+      if (onCancel) {
+        onCancel();
+      }
+    };
 
-  const handleChange = (updatedData: ConfigData) => {
-    setLocalFormData(updatedData);
-  };
+    const handleFormChange = (e: IChangeEvent<ConfigData>) => {
+      setLocalFormData(e.formData);
+      props.onChange && props.onChange(e);
+    };
 
-  const getConnectionTestingMessage = () => {
-    switch (connectionTestingState) {
-      case 'waiting':
+    const submitButton = useMemo(() => {
+      if (status === 'waiting') {
         return (
-          <div className="tw-flex">
-            <Loader size="small" type="default" />{' '}
-            <span className="tw-ml-2">Testing Connection</span>
-          </div>
+          <Button
+            disabled
+            className="p-x-md p-y-xxs h-auto rounded-6"
+            type="primary">
+            <Loader size="small" type="white" />
+          </Button>
         );
-      case 'success':
+      } else if (status === 'success') {
         return (
-          <div className="tw-flex">
-            <SVGIcons alt="success-badge" icon={Icons.SUCCESS_BADGE} />
-            <span className="tw-ml-2">Connection test was successful</span>
-          </div>
+          <Button
+            disabled
+            className="p-x-md p-y-xxs h-auto rounded-6"
+            type="primary">
+            <CheckOutlined />
+          </Button>
         );
-
-      case 'initial':
-      default:
-        return 'Test your connections before creating service';
-    }
-  };
-
-  return (
-    <Form
-      ArrayFieldTemplate={ArrayFieldTemplate}
-      ObjectFieldTemplate={ObjectFieldTemplate}
-      className={classNames('rjsf', props.className, {
-        'no-header': !showFormHeader,
-      })}
-      formData={localFormData}
-      ref={(form) => {
-        oForm = form;
-      }}
-      schema={schema}
-      uiSchema={uiSchema}
-      onChange={(e) => {
-        handleChange(e.formData);
-        props.onChange && props.onChange(e);
-      }}
-      onSubmit={onSubmit}
-      {...props}>
-      {isEmpty(schema) && (
-        <div className="tw-text-grey-muted tw-text-center">
-          No Connection Configs available.
-        </div>
-      )}
-      {!isEmpty(schema) && onTestConnection && (
-        <div className="tw-flex tw-justify-between tw-bg-white tw-border tw-border-main tw-shadow tw-rounded tw-p-3 tw-mt-4">
-          <div className="tw-self-center">{getConnectionTestingMessage()}</div>
+      } else {
+        return (
           <Button
-            className={classNames('tw-self-center tw-py-1 tw-px-1.5', {
-              'tw-opacity-40': connectionTesting,
-            })}
-            data-testid="test-connection-btn"
-            disabled={connectionTesting}
-            size="small"
-            theme="primary"
-            variant="outlined"
-            onClick={handleTestConnection}>
-            Test Connection
+            className="font-medium p-x-md p-y-xxs h-auto rounded-6"
+            data-testid="submit-btn"
+            htmlType="submit"
+            loading={isLoading}
+            type="primary">
+            {okText}
           </Button>
-        </div>
-      )}
-      <div className="tw-mt-6 tw-flex tw-justify-between">
-        <div />
-        <div className="tw-text-right" data-testid="buttons">
-          <Button
-            size="regular"
-            theme="primary"
-            variant="text"
-            onClick={handleCancel}>
-            {cancelText}
-          </Button>
-          {status === 'waiting' ? (
-            <Button
-              disabled
-              className="tw-w-16 tw-h-10 disabled:tw-opacity-100"
-              size="regular"
-              theme="primary"
-              variant="contained">
-              <Loader size="small" type="white" />
-            </Button>
-          ) : status === 'success' ? (
-            <Button
-              disabled
-              className="tw-w-16 tw-h-10 disabled:tw-opacity-100"
-              size="regular"
-              theme="primary"
-              variant="contained">
-              <FontAwesomeIcon icon="check" />
-            </Button>
-          ) : (
-            <Button
-              className="tw-w-16 tw-h-10"
-              data-testid="submit-btn"
-              size="regular"
-              theme="primary"
-              variant="contained"
-              onClick={handleSubmit}>
-              {okText}
+        );
+      }
+    }, [status, isLoading, okText]);
+
+    return (
+      <Form
+        focusOnFirstError
+        noHtml5Validate
+        omitExtraData
+        className={classNames('rjsf', props.className, {
+          'no-header': !showFormHeader,
+        })}
+        formContext={{ handleFocus: onFocus }}
+        formData={localFormData}
+        idSeparator="/"
+        ref={ref}
+        schema={schema}
+        showErrorList={false}
+        templates={{
+          ArrayFieldTemplate: ArrayFieldTemplate,
+          ObjectFieldTemplate: ObjectFieldTemplate,
+          DescriptionFieldTemplate: DescriptionFieldTemplate,
+          FieldErrorTemplate: FieldErrorTemplate,
+        }}
+        transformErrors={transformErrors}
+        uiSchema={uiSchema}
+        widgets={widgets}
+        onChange={handleFormChange}
+        onFocus={onFocus}
+        onSubmit={onSubmit}
+        {...props}>
+        {children}
+        <div
+          className="m-t-lg d-flex justify-end text-right"
+          data-testid="buttons">
+          {!hideCancelButton && (
+            <Button type="link" onClick={handleCancel}>
+              {cancelText}
             </Button>
           )}
+
+          {!isReadOnlyForm && submitButton}
         </div>
-      </div>
-    </Form>
-  );
-};
+      </Form>
+    );
+  }
+);
 
 export default FormBuilder;

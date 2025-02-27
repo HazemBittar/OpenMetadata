@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 /* eslint-disable max-len */
 
 import React from 'react';
-import RichTextEditorPreviewer from '../../common/rich-text-editor/RichTextEditorPreviewer';
+import RichTextEditorPreviewerV1 from '../../common/RichTextEditor/RichTextEditorPreviewerV1';
 
 type Props = {
   data: { [name: string]: string };
@@ -25,48 +25,23 @@ const ChangeLogs = ({ data }: Props) => {
 
   return (
     <div>
-      {logKeys.map((log, index) => (
-        <div className="tw-mb-4" key={index}>
-          <div className="tw-border-b tw-mb-2.5 tw-border-text">
-            <p className="tw-text-base tw-font-medium tw-mb-2.5">{log}</p>
+      {logKeys.map((log) => (
+        <div className="mb-4" key={log}>
+          <div className="border-bottom mb-2.5 border-text">
+            <p className="text-base font-medium mb-2.5 log-title">
+              <RichTextEditorPreviewerV1
+                enableSeeMoreVariant={false}
+                markdown={log}
+              />
+            </p>
           </div>
-          <RichTextEditorPreviewer
+          <RichTextEditorPreviewerV1
             enableSeeMoreVariant={false}
             markdown={data[log]}
           />
         </div>
       ))}
     </div>
-    // <div>
-    //   {data.highlight && (
-    //     <div className="tw-mb-4">
-    //       <div className="tw-border-b tw-mb-2.5 tw-border-text">
-    //         <p className="tw-text-base tw-font-medium tw-mb-2.5">Highlights</p>
-    //       </div>
-    //       <RichTextEditorPreviewer markdown={data.highlight} />
-    //     </div>
-    //   )}
-
-    //   {data.bugFix && (
-    //     <div className="tw-mb-4">
-    //       <div className="tw-border-b tw-mb-2.5 tw-border-text">
-    //         <p className="tw-text-base tw-font-medium tw-mb-2.5">Bug fixes</p>
-    //       </div>
-    //       <RichTextEditorPreviewer markdown={data.bugFix} />
-    //     </div>
-    //   )}
-
-    //   {data.miscellaneous && (
-    //     <div className="tw-mb-4">
-    //       <div className="tw-border-b tw-mb-2.5 tw-border-text">
-    //         <p className="tw-text-base tw-font-medium tw-mb-2.5">
-    //           Miscellaneous
-    //         </p>
-    //       </div>
-    //       <RichTextEditorPreviewer markdown={data.miscellaneous} />
-    //     </div>
-    //   )}
-    // </div>
   );
 };
 

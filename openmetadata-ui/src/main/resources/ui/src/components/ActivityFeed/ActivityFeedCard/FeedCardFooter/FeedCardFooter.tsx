@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,8 +11,10 @@
  *  limitations under the License.
  */
 
+import { Button, Divider } from 'antd';
 import { isUndefined } from 'lodash';
 import React, { FC } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getReplyText } from '../../../../utils/FeedUtils';
 import ProfilePicture from '../../../common/ProfilePicture/ProfilePicture';
 import { FeedFooterProp } from '../ActivityFeedCard.interface';
@@ -25,34 +27,34 @@ const FeedCardFooter: FC<FeedFooterProp> = ({
   onThreadSelect,
   isFooterVisible,
 }) => {
+  const { t } = useTranslation();
   const repliesCount = isUndefined(replies) ? 0 : replies;
 
   return (
-    <div className={className}>
+    <Divider className={className} orientation="left">
       {!isUndefined(repliedUsers) &&
       !isUndefined(replies) &&
       isFooterVisible ? (
-        <div className="tw-flex tw-group tw-items-center">
+        <Button
+          className="d-flex  p-0 items-center"
+          data-testid="reply-count"
+          size="small"
+          type="link"
+          onClick={() => onThreadSelect?.(threadId as string)}>
           {repliedUsers?.map((u, i) => (
             <ProfilePicture
-              className="tw-mt-0.5 tw-mx-0.5"
+              avatarType="outlined"
+              className="m-r-xss"
               data-testid="replied-user"
-              id=""
               key={i}
               name={u}
-              profileImgClasses="tw-align-baseline"
               width="18"
             />
           ))}
-          <span
-            className="tw-ml-1 tw-text-info tw-text-xs tw-underline tw-self-center"
-            data-testid="reply-count"
-            onClick={() => onThreadSelect?.(threadId as string)}>
-            {`View ${getReplyText(repliesCount)}`}
-          </span>
-        </div>
+          {`${t('label.view')} ${getReplyText(repliesCount)}`}
+        </Button>
       ) : null}
-    </div>
+    </Divider>
   );
 };
 

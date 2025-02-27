@@ -10,25 +10,30 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-MYSQL_HOST=${MYSQL_HOST:-mysql}
-MYSQL_PORT=${MYSQL_PORT:-3306}
+DB_HOST=${DB_HOST:-mysql}
+DB_PORT=${DB_PORT:-3306}
 
-MYSQL_DB=${MYSQL_DB:-airflow_db}
-MYSQL_USER=${MYSQL_USER:-airflow_user}
-MYSQL_PASSWORD=${MYSQL_PASSWORD:-airflow_pass}
-
-MYSQL_CONN="${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}"
+AIRFLOW_DB=${AIRFLOW_DB:-airflow_db}
+DB_USER=${DB_USER:-airflow_user}
+DB_SCHEME=${DB_SCHEME:-mysql+mysqldb}  # pymysql has issues migrating past Airflow 2.9.1
+DB_PASSWORD=${DB_PASSWORD:-airflow_pass}
+DB_PROPERTIES=${DB_PROPERTIES:-""}
 
 AIRFLOW_ADMIN_USER=${AIRFLOW_ADMIN_USER:-admin}
 AIRFLOW_ADMIN_PASSWORD=${AIRFLOW_ADMIN_PASSWORD:-admin}
 
-OPENMETADATA_SERVER=${OPENMETADATA_SERVER:-"http://openmetadata-server:8585"}
+DB_USER_VAR=`echo "${DB_USER}" | python3 -c "import urllib.parse; encoded_user = urllib.parse.quote(input()); print(encoded_user)"`
+DB_PASSWORD_VAR=`echo "${DB_PASSWORD}" | python3 -c "import urllib.parse; encoded_user = urllib.parse.quote(input()); print(encoded_user)"`
 
-sed -i "s#\(sql_alchemy_conn = \).*#\1mysql+pymysql://${MYSQL_CONN}#" /airflow/airflow.cfg
+DB_CONN=`echo -n "${DB_SCHEME}://${DB_USER_VAR}:${DB_PASSWORD_VAR}@${DB_HOST}:${DB_PORT}/${AIRFLOW_DB}${DB_PROPERTIES}"`
 
-while ! wget -O /dev/null -o /dev/null $MYSQL_HOST:$MYSQL_PORT; do sleep 5; done
+# Set the default necessary auth_backend information
+export AIRFLOW__API__AUTH_BACKEND=${AIRFLOW__API__AUTH_BACKENDS:-"airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"}
 
-airflow db init
+# Use the default airflow env var or the one we set from OM properties
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:-$DB_CONN}
+
+airflow db migrate
 
 airflow users create \
     --username ${AIRFLOW_ADMIN_USER} \
@@ -38,7 +43,7 @@ airflow users create \
     --email spiderman@superhero.org \
     --password ${AIRFLOW_ADMIN_PASSWORD}
 
-(sleep 5; airflow db upgrade)
-(sleep 5; airflow db upgrade)
+# we need to this in case the container is restarted and the scheduler exited without tidying up its lock file
+rm -f /opt/airflow/airflow-webserver-monitor.pid
 airflow webserver --port 8080 -D &
 airflow scheduler

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,128 +12,36 @@
  */
 
 declare module 'Models' {
+  import { EntityType } from '../enums/entity.enum';
+  import { CreateDashboardService } from '../generated/api/services/createDashboardService';
+  import { CreateDatabaseService } from '../generated/api/services/createDatabaseService';
+  import { CreateMessagingService } from '../generated/api/services/createMessagingService';
+  import { CreateMlModelService } from '../generated/api/services/createMlModelService';
+  import { CreatePipelineService } from '../generated/api/services/createPipelineService';
+  import { CreateSearchService } from '../generated/api/services/createSearchService';
+  import { CreateStorageService } from '../generated/api/services/createStorageService';
+  import { ChangeDescription } from '../generated/entity/data/dashboard';
+  import { EntityReference } from '../generated/type/entityReference';
   import { TagLabel } from '../generated/type/tagLabel';
-  export interface EntityReference {
-    deleted?: boolean;
+  import { SearchEntityHits } from '../utils/APIUtils';
+  import { Paging } from './../generated/type/paging';
 
-    description?: string;
-
-    displayName?: string;
-
-    fullyQualifiedName?: string;
-
-    href?: string;
-
+  export interface RestoreRequestType {
     id: string;
-
-    name?: string;
-
-    type: string;
   }
 
-  export type Match = {
-    params: {
-      searchQuery: string;
-    };
-  };
-  export type FilterObject = {
-    [key: string]: Array<string>;
-  };
-  export type PaginationProps = {
-    sizePerPage: number;
-    totalNumberOfValues: number;
-    currentPage: number;
-    paginate: Function;
-  };
-  export type Feed = {
-    addressedToEntity: {
-      description: string;
-      href: string;
-      id: string;
-      name: string;
-      type: string;
-    };
-    from: string;
-    message: string;
-  };
-
-  export type FeedById = {
-    from: string;
-    message: string;
-    postTs: string;
-  };
-
-  export type ServiceOption = {
-    id: string;
-    brokers?: Array<string>;
-    description: string;
-    dashboardUrl?: string;
-    ingestionSchedule?: {
-      repeatFrequency: string;
-      startDate: string;
-    };
-    jdbc?: { connectionUrl: string; driverClass: string };
-    name: string;
-    schemaRegistry?: string;
-    serviceType: string;
-  };
-
-  export type MockColumn = {
-    columnId: number;
-    name: string;
-    columnDataType: string;
-    description: string;
-    selected: boolean;
-    piiTags?: Array<string>;
-  };
+  export type ServicesUpdateRequest =
+    | CreatePipelineService
+    | CreateMlModelService
+    | CreateDashboardService
+    | CreateDatabaseService
+    | CreateMessagingService
+    | CreateStorageService
+    | CreateSearchService;
 
   export type EntityTags = {
     isRemovable?: boolean;
   } & TagLabel;
-
-  export type TableColumn = {
-    name: string;
-    columnDataType: string;
-    description: string;
-    fullyQualifiedName: string;
-    tags: Array<ColumnTags>;
-    columnConstraint?: string;
-    ordinalPosition: number;
-  };
-
-  export type Stats = {
-    count: number;
-    percentileRank: number;
-  };
-
-  export type UsageSummary = {
-    dailyStats: Stats;
-    date: string;
-    monthlyStats: Stats;
-    weeklyStats: Stats;
-  };
-
-  export type ColumnJoin = {
-    fullyQualifiedName: string;
-    joinCount: number;
-  };
-
-  export type ColumnJoins = {
-    columnName: string;
-    joinedWith: Array<ColumnJoin>;
-  };
-
-  export type TableJoinsData = {
-    startDate: string;
-    dayCount: number;
-    columnJoins: Array<ColumnJoins>;
-  };
-
-  export type Paging = {
-    after: string;
-    before: string;
-    total?: number;
-  };
 
   export type LoadingState = 'initial' | 'waiting' | 'success';
 
@@ -158,50 +66,10 @@ declare module 'Models' {
   export type Bucket = {
     key: string;
     doc_count: number;
-  };
-  type AggregationType = {
-    title: string;
-    buckets: Array<Bucket>;
-  };
-  export type Sterm = {
-    doc_count_error_upper_bound: number;
-    sum_other_doc_count: number;
-    buckets: Array<Bucket>;
+    label?: string;
   };
 
-  export interface Aggregation {
-    'sterms#Platform': Sterm;
-    'sterms#Cluster': Sterm;
-    'sterms#Tags': Sterm;
-  }
-  export type TableEntity = {
-    id: string;
-    href: string;
-    tableType: string;
-    fullyQualifiedName: string;
-    tableConstraints?: string;
-    followers?: Array<string>;
-    tags?: Array<string>;
-  } & TableDetail;
-
-  export type UserProfile = {
-    images: Record<string, string>;
-  };
-
-  export type User = {
-    displayName: string;
-    isBot: boolean;
-    isAdmin: boolean;
-    id: string;
-    name: string;
-    profile: UserProfile;
-    teams: Array<UserTeam>;
-    follows?: Array<UserTeam>;
-    timezone: string;
-    href: string;
-  };
-
-  export type FormatedTableData = {
+  export type FormattedTableData = {
     id: string;
     name: string;
     displayName: string;
@@ -217,46 +85,22 @@ declare module 'Models' {
     service?: string;
     serviceType?: string;
     tier: string | TagLabel;
-    highlight?: {
-      description: string[];
-      name: string[];
-    };
+    highlight?: Record<string, string[]>;
     index: string;
     type?: string;
     database?: string;
     databaseSchema?: string;
     deleted?: boolean;
     entityType?: string;
-  };
-
-  export type FormattedUsersData = {
-    name: string;
-    displayName: string;
-    email: string;
-    type: string;
-    id: string;
-  };
-
-  export type FormattedTeamsData = {
-    name: string;
-    displayName: string;
-    type: string;
-    id: string;
-  };
-
-  export type FormattedGlossaryTermData = {
-    name: string;
-    displayName: string;
-    fullyQualifiedName: string;
-    fqdn?: string;
-    type: string;
-    id: string;
-    description?: string;
+    changeDescription?: ChangeDescription;
+    columns?: TableColumn[];
   };
 
   export type SearchedUsersAndTeams = {
-    users: FormattedUsersData[];
-    teams: FormattedTeamsData[];
+    users: User[];
+    teams: Team[];
+    usersTotal?: number;
+    teamsTotal?: number;
   };
 
   export type TagOption = {
@@ -264,29 +108,9 @@ declare module 'Models' {
     source: string;
   };
 
-  export interface FormattedGlossarySuggestion {
-    deleted: boolean;
-    description: string;
-    display_name: string;
-    entity_type: string;
-    fullyQualifiedName: string;
-    glossary_id: string;
-    glossary: { name: string };
-    last_updated_timestamp: number;
-    name: string;
-  }
-
-  export interface GlossarySuggestionHit {
-    text: string;
-    _index?: string;
-    _type?: string;
-    _id?: string;
-    _score?: number;
-    _source: FormattedGlossarySuggestion;
-  }
-
-  export interface GlossaryTermAssets {
-    data: FormatedTableData[];
+  export interface AssetsDataType {
+    isLoading?: boolean;
+    data: SearchEntityHits;
     total: number;
     currPage: number;
   }
@@ -301,90 +125,9 @@ declare module 'Models' {
   export type ClientAuth = {
     authority: string;
     client_id: string;
-    provider?: 'google' | 'okta' | 'auth0'; // TODO: add 'github' after adding support for Github SSO
+    provider?: 'google' | 'okta' | 'auth0';
     callbackUrl?: string;
     signingIn?: boolean;
-  };
-
-  export type Table = {
-    id: string;
-    type?: string;
-    name: string;
-    description: string;
-    href: string;
-    fullyQualifiedName: string;
-  };
-
-  export type StateInfo = {
-    count: number;
-    percentileRank: number;
-  };
-
-  export type UsageState = {
-    dailyStats: StateInfo;
-    weeklyStats: StateInfo;
-    monthlyStats: StateInfo;
-    date: string;
-  };
-
-  export type Database = {
-    description: string;
-    displayName?: string;
-    fullyQualifiedName: string;
-    href: string;
-    id: string;
-    name: string;
-    owner: {
-      description: string;
-      href: string;
-      id: string;
-      name: string;
-      type: string;
-    };
-    service: {
-      description: string;
-      href: string;
-      id: string;
-      name: string;
-      type: string;
-    };
-    tables: Table[];
-    usageSummary: UsageState;
-  };
-
-  export type SearchHit = {
-    _index?: string;
-    _type?: string;
-    _id?: string;
-    _score?: number;
-    _source: FormatedTableData;
-  };
-
-  export type SearchResponse = {
-    data: {
-      hits: {
-        total: {
-          value: number;
-          relation?: string;
-        };
-        hits: Array<SearchHit>;
-      };
-      aggregations: Record<string, Sterm>;
-    };
-  };
-  export type Team = {
-    id: string;
-    name: string;
-    displayName: string;
-    description: string;
-    href: string;
-    users: Array<UserTeam>;
-    owns: Array<UserTeam>;
-  };
-
-  export type ServiceCollection = {
-    name: string;
-    value: string;
   };
 
   export type ServiceData = {
@@ -400,12 +143,11 @@ declare module 'Models' {
     | 'messagingServices'
     | 'dashboardServices'
     | 'pipelineServices'
-    | 'mlmodelServices';
-
-  export type SampleData = {
-    columns: Array<string>;
-    rows: Array<Array<string>>;
-  };
+    | 'mlmodelServices'
+    | 'metadataServices'
+    | 'storageServices'
+    | 'searchServices'
+    | 'apiServices';
 
   export type SearchDataFunctionType = {
     queryString: string;
@@ -417,66 +159,13 @@ declare module 'Models' {
     searchIndex?: string;
   };
 
-  export type EntityCounts = {
-    tableCount: number;
-    topicCount: number;
-    dashboardCount: number;
-    pipelineCount: number;
-  };
-
-  // topic interface start
-  export interface Topic {
-    cleanupPolicies: string[];
-    description: string;
-    followers: Follower[];
-    fullyQualifiedName: string;
-    href: string;
-    id: string;
-    maximumMessageSize: number;
-    minimumInSyncReplicas: number;
-    name: string;
-    owner: Owner;
-    partitions: number;
-    retentionSize: number;
-    retentionTime: number;
-    schemaText: string;
-    schemaType: string;
-    service: Service;
-    tags: ColumnTags[];
-  }
-
-  export interface Follower {
-    description: string;
-    href: string;
-    id: string;
-    name: string;
-    type: string;
-  }
-
-  export interface Owner {
-    description: string;
-    href: string;
-    id: string;
-    name: string;
-    type: string;
-  }
-
-  export interface Service {
-    description: string;
-    href: string;
-    id: string;
-    name: string;
-    type: string;
-  }
-
-  // topic interface end
-
   interface RecentlyViewedData {
     displayName?: string;
-    entityType: 'table' | 'topic' | 'dashboard' | 'pipeline';
+    entityType: EntityType;
     fqn: string;
     serviceType?: string;
     timestamp: number;
+    id: string;
   }
 
   interface RecentlySearchedData {
@@ -490,26 +179,19 @@ declare module 'Models' {
     data: Array<RecentlySearchedData>;
   }
 
-  export type DatasetSchemaTableTab = 'schema' | 'sample_data';
-  export type LineagePos = 'from' | 'to';
-  export interface LeafNodes {
-    upStreamNode: Array<string>;
-    downStreamNode: Array<string>;
-  }
-  export interface LoadingNodeState {
-    id: string | undefined;
-    state: boolean;
-  }
-
   export type ExtraInfo = {
     key?: string;
     value: string | number | React.ReactNode;
+    id?: string;
+    localizationKey?: string;
     isLink?: boolean;
     placeholderText?: string;
     openInNewTab?: boolean;
     showLabel?: boolean;
     avatarWidth?: string;
     profileName?: string;
+    isEntityCard?: boolean;
+    isEntityDetails?: boolean;
   };
 
   export interface FormErrorData {
@@ -519,10 +201,6 @@ declare module 'Models' {
   export type StepperStepType = {
     name: string;
     step: number;
-  };
-
-  type DynamicObj = {
-    [key: string]: string;
   };
 
   type DynamicFormFieldType = {
@@ -546,12 +224,12 @@ declare module 'Models' {
       password: string;
       username: string;
       database: string;
-      connectionArguments: DynamicObj;
-      connectionOptions: DynamicObj;
+      connectionArguments: Record<string, string>;
+      connectionOptions: Record<string, string>;
     };
     brokers?: Array<string>;
     schemaRegistry?: string;
-    dashboardUrl?: string;
+    sourceUrl?: string;
     username?: string;
     password?: string;
     url?: string;
@@ -560,42 +238,49 @@ declare module 'Models' {
     api_version?: string;
     server?: string;
     env?: string;
-    pipelineUrl?: string;
+    sourceUrl?: string;
   };
-
-  export interface UserPermissions {
-    EditOwner: boolean;
-    EditDescription: boolean;
-    EditLineage: boolean;
-    EditTags: boolean;
-    TeamEditUsers: boolean;
-  }
-  export interface EditorContentRef {
-    getEditorContent: () => string;
-  }
-
-  // Feed interfaces and types
-  export interface EntityFieldThreadCount {
-    count: number;
-    entityLink: string;
-  }
-
-  export type EntityThreadField = 'description' | 'columns' | 'tags' | 'tasks';
-  export interface EntityFieldThreads {
-    entityLink: string;
-    count: number;
-    entityField: string;
-  }
 
   export type ImageShape = 'circle' | 'square';
 
-  export interface SelectableOption {
-    readonly label: string;
-    readonly value: string;
+  export interface PagingResponse<T> {
+    data: T;
+    paging: Paging;
   }
 
-  export interface ScrollHandle {
-    left: boolean;
-    right: boolean;
+  export interface CurrentState {
+    id: string;
+    state: string;
+  }
+
+  export type PagingWithoutTotal = Omit<Paging, 'total'>;
+
+  type EntityDetailUnion =
+    | Table
+    | Pipeline
+    | Dashboard
+    | Topic
+    | Mlmodel
+    | Container;
+
+  export type DateFilterType = Record<string, { days: number; title: string }>;
+
+  export type TagFilterOptions = {
+    text: string;
+    value: string;
+    source: TagSource;
+  };
+
+  export type TagsData = {
+    tags?: TagLabel[];
+    fullyQualifiedName?: string;
+    children?: TagsData[];
+  };
+
+  export interface DateRangeObject {
+    startTs: number;
+    endTs: number;
+    key?: string;
+    title?: string;
   }
 }

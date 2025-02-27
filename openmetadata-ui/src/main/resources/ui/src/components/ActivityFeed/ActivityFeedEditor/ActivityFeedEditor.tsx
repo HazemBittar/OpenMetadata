@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,17 +12,27 @@
  */
 
 import classNames from 'classnames';
-import React, { FC, HTMLAttributes, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  HTMLAttributes,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { getBackendFormat, HTMLToMarkdown } from '../../../utils/FeedUtils';
-import { FeedEditor } from '../../FeedEditor/FeedEditor';
+import { editorRef } from '../../common/RichTextEditor/RichTextEditor.interface';
+import { FeedEditor } from '../FeedEditor/FeedEditor';
 import { KeyHelp } from './KeyHelp';
 import { SendButton } from './SendButton';
 
 interface ActivityFeedEditorProp extends HTMLAttributes<HTMLDivElement> {
-  onSave?: (value: string) => void;
-  buttonClass?: string;
   placeHolder?: string;
   defaultValue?: string;
+  editorClass?: string;
+  editAction?: React.ReactNode;
+  onSave?: (value: string) => void;
+  onTextChange?: (message: string) => void;
+  focused?: boolean;
 }
 
 export type EditorContentRef = {
@@ -30,49 +40,73 @@ export type EditorContentRef = {
   clearEditorValue: () => string;
 };
 
-const ActivityFeedEditor: FC<ActivityFeedEditorProp> = ({
-  className,
-  buttonClass = '',
-  onSave,
-  placeHolder,
-  defaultValue,
-}) => {
-  const editorRef = useRef<EditorContentRef>();
-  const [editorValue, setEditorValue] = useState<string>('');
+const ActivityFeedEditor = forwardRef<editorRef, ActivityFeedEditorProp>(
+  (
+    {
+      className,
+      editorClass,
+      onSave,
+      placeHolder,
+      defaultValue,
+      onTextChange,
+      editAction,
+      focused = false,
+    },
+    ref
+  ) => {
+    const editorRef = useRef<EditorContentRef>();
+    const [editorValue, setEditorValue] = useState<string>('');
 
-  const onChangeHandler = (value: string) => {
-    setEditorValue(HTMLToMarkdown.turndown(value));
-  };
+    const onChangeHandler = (value: string) => {
+      const markdown = HTMLToMarkdown.turndown(value);
+      const backendFormat = getBackendFormat(markdown);
+      setEditorValue(markdown);
+      onTextChange && onTextChange(backendFormat);
+    };
 
-  const onSaveHandler = () => {
-    if (editorRef.current) {
-      if (editorRef.current?.getEditorValue()) {
-        setEditorValue('');
-        editorRef.current?.clearEditorValue();
-        onSave?.(getBackendFormat(editorRef.current?.getEditorValue()));
+    const onSaveHandler = () => {
+      if (editorRef.current) {
+        if (editorRef.current?.getEditorValue()) {
+          setEditorValue('');
+          editorRef.current?.clearEditorValue();
+          const message = getBackendFormat(editorRef.current?.getEditorValue());
+          onSave && onSave(message);
+        }
       }
-    }
-  };
+    };
 
-  return (
-    <div className={classNames('tw-relative', className)}>
-      <FeedEditor
-        defaultValue={defaultValue}
-        placeHolder={placeHolder}
-        ref={editorRef}
-        onChangeHandler={onChangeHandler}
-        onSave={onSaveHandler}
-      />
+    /**
+     * Handle forward ref logic and provide method access to parent component
+     */
+    useImperativeHandle(ref, () => ({
+      ...editorRef.current,
+    }));
 
-      <SendButton
-        buttonClass={buttonClass}
-        editorValue={editorValue}
-        onSaveHandler={onSaveHandler}
-      />
-
-      <KeyHelp editorValue={editorValue} />
-    </div>
-  );
-};
+    return (
+      <div
+        className={classNames('relative', className)}
+        onClick={(e) => e.stopPropagation()}>
+        <FeedEditor
+          defaultValue={defaultValue}
+          editorClass={editorClass}
+          focused={focused}
+          placeHolder={placeHolder}
+          ref={editorRef}
+          onChangeHandler={onChangeHandler}
+          onSave={onSaveHandler}
+        />
+        {editAction ?? (
+          <>
+            <SendButton
+              editorValue={editorValue}
+              onSaveHandler={onSaveHandler}
+            />
+            <KeyHelp editorValue={editorValue} />
+          </>
+        )}
+      </div>
+    );
+  }
+);
 
 export default ActivityFeedEditor;

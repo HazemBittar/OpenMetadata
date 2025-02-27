@@ -29,7 +29,8 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "allowUnreachableCode": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noImplicitAny": true
   },
   "include": ["src"]
 }

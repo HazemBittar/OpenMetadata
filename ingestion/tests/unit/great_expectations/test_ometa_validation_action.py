@@ -34,7 +34,28 @@ def test_get_table_entity(input, expected, mocked_ometa, mocked_ge_data_context)
     ometa_validation = OpenMetadataValidationAction(
         data_context=mocked_ge_data_context,
         config_file_path="my/config/path",
-        ometa_service_name=input,
+        database_service_name=input,
+    )
+
+    res = ometa_validation._get_table_entity("database", "schema", "table")
+    assert res._type == expected
+
+
+@mark.parametrize(
+    "input,expected",
+    [
+        (None, "list_entities"),
+        ("service_name", "get_by_name"),
+    ],
+)
+def test_get_table_entity_database_service_name(
+    input, expected, mocked_ometa, mocked_ge_data_context
+):
+    """Test get table entity"""
+    ometa_validation = OpenMetadataValidationAction(
+        data_context=mocked_ge_data_context,
+        config_file_path="my/config/path",
+        database_service_name=input,
     )
 
     res = ometa_validation._get_table_entity("database", "schema", "table")

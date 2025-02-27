@@ -8,258 +8,185 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+"""
+This module defines the CLI commands for OpenMetadata
+"""
+import argparse
 import logging
-import os
-import pathlib
-import sys
+from enum import Enum
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import List, Optional, Tuple
+from pathlib import Path
 
-import click
-from pydantic import ValidationError
+# pyright: reportUnusedCallResult=false
+from typing import List, Optional, Union
 
 from metadata.__version__ import get_metadata_version
-from metadata.cli.backup import run_backup
-from metadata.cli.docker import run_docker
+from metadata.cli.app import run_app
+from metadata.cli.classify import run_classification
+from metadata.cli.dataquality import run_test
 from metadata.cli.ingest import run_ingest
-from metadata.config.common import load_config_file
-from metadata.ingestion.api.workflow import Workflow
-from metadata.orm_profiler.api.workflow import ProfilerWorkflow
+from metadata.cli.lineage import run_lineage
+from metadata.cli.profile import run_profiler
+from metadata.cli.usage import run_usage
 from metadata.utils.logger import cli_logger, set_loggers_level
 
 logger = cli_logger()
 
 
-@click.group()
-def check() -> None:
-    pass
+class MetadataCommands(Enum):
+    INGEST = "ingest"
+    USAGE = "usage"
+    PROFILE = "profile"
+    TEST = "test"
+    WEBHOOK = "webhook"
+    LINEAGE = "lineage"
+    APP = "app"
+    AUTO_CLASSIFICATION = "classify"
 
 
-@click.group()
-@click.version_option(get_metadata_version())
-@click.option(
-    "--debug/--no-debug", default=lambda: os.environ.get("METADATA_DEBUG", False)
-)
-@click.option(
-    "--log-level",
-    "-l",
-    type=click.Choice(["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"]),
-    help="Log level",
-    required=False,
-)
-def metadata(debug: bool, log_level: str) -> None:
-    if debug:
-        set_loggers_level(logging.DEBUG)
-    elif log_level:
-        set_loggers_level(log_level)
-    else:
-        set_loggers_level(logging.INFO)
+RUN_PATH_METHODS = {
+    MetadataCommands.INGEST.value: run_ingest,
+    MetadataCommands.USAGE.value: run_usage,
+    MetadataCommands.LINEAGE.value: run_lineage,
+    MetadataCommands.PROFILE.value: run_profiler,
+    MetadataCommands.TEST.value: run_test,
+    MetadataCommands.APP.value: run_app,
+    MetadataCommands.AUTO_CLASSIFICATION.value: run_classification,
+}
 
 
-@metadata.command()
-@click.option(
-    "-c",
-    "--config",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Workflow config",
-    required=True,
-)
-def ingest(config: str) -> None:
-    """
-    Main command for ingesting metadata into Metadata.
-    Logging is controlled via the JSON config
-    """
-    run_ingest(config_path=config)
-
-
-@metadata.command()
-@click.option(
-    "-c",
-    "--config",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Profiler and Testing Workflow config",
-    required=True,
-)
-def profile(config: str) -> None:
-    """Main command for profiling and testing Table sources into Metadata"""
-    config_file = pathlib.Path(config)
-    workflow_config = load_config_file(config_file)
-
-    try:
-        logger.debug(f"Using config: {workflow_config}")
-        workflow = ProfilerWorkflow.create(workflow_config)
-    except ValidationError as e:
-        click.echo(e, err=True)
-        sys.exit(1)
-
-    workflow.execute()
-    workflow.stop()
-    ret = workflow.print_status()
-    sys.exit(ret)
-
-
-@metadata.command()
-@click.option("-h", "--host", help="Webserver Host", type=str, default="0.0.0.0")
-@click.option("-p", "--port", help="Webserver Port", type=int, default=8000)
-def webhook(host: str, port: int) -> None:
-    """Simple Webserver to test webhook metadata events"""
-
-    class WebhookHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-
-            message = "Hello, World! Here is a GET response"
-            self.wfile.write(bytes(message, "utf8"))
-
-        def do_POST(self):
-            content_len = int(self.headers.get("Content-Length"))
-            post_body = self.rfile.read(content_len)
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            logger.info(post_body)
-
-    logger.info(f"Starting server at {host}:{port}")
-    with HTTPServer((host, port), WebhookHandler) as server:
-        server.serve_forever()
-
-
-@metadata.command()
-@click.option("--start", help="Start release docker containers", is_flag=True)
-@click.option(
-    "--stop",
-    help="Stops openmetadata docker containers",
-    is_flag=True,
-)
-@click.option("--pause", help="Pause openmetadata docker containers", is_flag=True)
-@click.option(
-    "--resume", help="Resume/Unpause openmetadata docker containers", is_flag=True
-)
-@click.option(
-    "--clean",
-    help="Stops and remove openmetadata docker containers along with images, volumes, networks associated",
-    is_flag=True,
-)
-@click.option(
-    "-f",
-    "--file-path",
-    help="Path to Local docker-compose.yml",
-    type=click.Path(exists=True, dir_okay=False),
-    required=False,
-)
-@click.option(
-    "-env-file",
-    "--env-file-path",
-    help="Path to env file containing the environment variables",
-    type=click.Path(exists=True, dir_okay=False),
-    required=False,
-)
-@click.option("--reset-db", help="Reset OpenMetadata Data", is_flag=True)
-@click.option(
-    "--ingest-sample-data", help="Enable the sample metadata ingestion", is_flag=True
-)
-def docker(
-    start,
-    stop,
-    pause,
-    resume,
-    clean,
-    file_path,
-    env_file_path,
-    reset_db,
-    ingest_sample_data,
-) -> None:
-    """
-    Checks Docker Memory Allocation
-    Run Latest Release Docker - metadata docker --start
-    Run Local Docker - metadata docker --start -f path/to/docker-compose.yml
-    """
-    run_docker(
-        start,
-        stop,
-        pause,
-        resume,
-        clean,
-        file_path,
-        env_file_path,
-        reset_db,
-        ingest_sample_data,
+def create_common_config_parser_args(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "-c",
+        "--config",
+        help="path to the config file",
+        type=Path,
+        required=True,
     )
 
 
-@metadata.command()
-@click.option(
-    "-h",
-    "--host",
-    help="Host that runs the database",
-    required=True,
-)
-@click.option(
-    "-u",
-    "--user",
-    help="User to run the backup",
-    required=True,
-)
-@click.option(
-    "-p",
-    "--password",
-    help="Credentials for the user",
-    required=True,
-)
-@click.option(
-    "-d",
-    "--database",
-    help="Database to backup",
-    required=True,
-)
-@click.option(
-    "--port",
-    help="Database service port",
-    default="3306",
-    required=False,
-)
-@click.option(
-    "--output",
-    help="Local path to store the backup",
-    type=click.Path(exists=False, dir_okay=True),
-    default=None,
-    required=False,
-)
-@click.option(
-    "--upload",
-    help="S3 endpoint, bucket & key to upload the backup file",
-    nargs=3,
-    type=click.Tuple([str, str, str]),
-    default=None,
-    required=False,
-)
-@click.option(
-    "-o", "--options", multiple=True, default=["--protocol=tcp", "--no-tablespaces"]
-)
-def backup(
-    host: str,
-    user: str,
-    password: str,
-    database: str,
-    port: str,
-    output: Optional[str],
-    upload: Optional[Tuple[str, str, str]],
-    options: List[str],
-) -> None:
+def webhook_args(parser: argparse.ArgumentParser):
     """
-    Run a backup for the metadata DB.
-    Requires mysqldump installed on the host.
-
-    We can pass as many options as required with `-o <opt1>, -o <opt2> [...]`
-
-    To run the upload, provide the information as
-    `--upload endpoint bucket key` and properly configure the environment
-    variables AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY
+    Additional Parser Arguments for Webhook
     """
-    run_backup(host, user, password, database, port, output, upload, options)
+    parser.add_argument(
+        "-H", "--host", help="Webserver Host", type=str, default="0.0.0.0"
+    )
+    parser.add_argument("-p", "--port", help="Webserver Port", type=int, default=8000)
 
 
-metadata.add_command(check)
+def add_metadata_args(parser: argparse.ArgumentParser):
+    """
+    Additional Parser Arguments for Metadata
+    """
+    parser.add_argument(
+        "-v", "--version", action="version", version=get_metadata_version()
+    )
+
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        choices=["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"],
+        help="Set Log Level",
+    )
+
+
+def get_parser(args: Optional[List[str]] = None):
+    """
+    Parser method that returns parsed_args
+    """
+    parser = argparse.ArgumentParser(prog="metadata", description="Ingestion Framework")
+    sub_parser = parser.add_subparsers(dest="command")
+
+    create_common_config_parser_args(
+        sub_parser.add_parser(MetadataCommands.INGEST.value, help="Ingestion Workflow")
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(MetadataCommands.LINEAGE.value, help="Lineage Workflow")
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(
+            MetadataCommands.USAGE.value,
+            help="Workflow to check the query logs of a database service.",
+        )
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(
+            MetadataCommands.PROFILE.value,
+            help="Workflow for profiling Table sources into Metadata",
+        )
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(
+            MetadataCommands.TEST.value, help="Workflow for running test suites"
+        )
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(
+            MetadataCommands.APP.value,
+            help="Workflow for running external applications",
+        )
+    )
+    create_common_config_parser_args(
+        sub_parser.add_parser(
+            MetadataCommands.AUTO_CLASSIFICATION.value,
+            help="Workflow for running auto classification",
+        )
+    )
+    webhook_args(
+        sub_parser.add_parser(
+            MetadataCommands.WEBHOOK.value,
+            help="Simple Webserver to test webhook metadata events",
+        )
+    )
+
+    add_metadata_args(parser)
+    parser.add_argument("--debug", help="Debug Mode", action="store_true")
+    return parser.parse_args(args)
+
+
+def metadata(args: Optional[List[str]] = None):
+    """
+    This method implements parsing of the arguments passed from CLI
+    """
+    contains_args = vars(get_parser(args))
+    metadata_workflow = contains_args.get("command")
+    config_file: Optional[Path] = contains_args.get("config")
+    path = None
+    if config_file:
+        path = config_file.expanduser()
+    if contains_args.get("debug"):
+        set_loggers_level(logging.DEBUG)
+    else:
+        log_level: Union[str, int] = contains_args.get("log_level") or logging.INFO
+        set_loggers_level(log_level)
+
+    if path and metadata_workflow and metadata_workflow in RUN_PATH_METHODS:
+        RUN_PATH_METHODS[metadata_workflow](path)
+
+    if metadata_workflow == MetadataCommands.WEBHOOK.value:
+
+        class WebhookHandler(BaseHTTPRequestHandler):
+            def do_GET(self):  # pylint: disable=invalid-name
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                self.wfile.write(bytes("Hello, World! Here is a GET response", "utf8"))
+
+            def do_POST(self):  # pylint: disable=invalid-name
+                if self.headers.get("Content-Length"):
+                    content_len = int(self.headers["Content-Length"])
+                    post_body = self.rfile.read(content_len)
+                    logger.info(post_body)
+
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+
+        logger.info(
+            f"Starting server at {contains_args.get('host')}:{contains_args.get('port')}"
+        )
+        with HTTPServer(
+            (contains_args["host"], contains_args["port"]), WebhookHandler
+        ) as server:
+            server.serve_forever()

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,378 +11,420 @@
  *  limitations under the License.
  */
 
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import classNames from 'classnames';
-import { isEmpty } from 'lodash';
-import { GlossaryTermAssets, LoadingState } from 'Models';
-import RcTree from 'rc-tree';
-import { DataNode, EventDataNode } from 'rc-tree/lib/interface';
-import React, { Fragment, useEffect, useRef, useState } from 'react';
-import { Tooltip } from 'react-tippy';
-import { useAuthContext } from '../../authentication/auth-provider/AuthProvider';
-import { FQN_SEPARATOR_CHAR } from '../../constants/char.constants';
-import { TITLE_FOR_NON_ADMIN_ACTION } from '../../constants/constants';
+import { AxiosError } from 'axios';
+import { compare } from 'fast-json-patch';
+import { cloneDeep, isEmpty } from 'lodash';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHistory, useParams } from 'react-router-dom';
+import { withActivityFeed } from '../../components/AppRouter/withActivityFeed';
+import { HTTP_STATUS_CODE } from '../../constants/Auth.constants';
+import { getGlossaryTermDetailsPath } from '../../constants/constants';
+import { usePermissionProvider } from '../../context/PermissionProvider/PermissionProvider';
+import {
+  OperationPermission,
+  ResourceEntity,
+} from '../../context/PermissionProvider/PermissionProvider.interface';
+import { EntityAction, EntityTabs } from '../../enums/entity.enum';
 import { Glossary } from '../../generated/entity/data/glossary';
 import { GlossaryTerm } from '../../generated/entity/data/glossaryTerm';
-import { useAuth } from '../../hooks/authHooks';
-import { useAfterMount } from '../../hooks/useAfterMount';
-import { ModifiedGlossaryData } from '../../pages/GlossaryPage/GlossaryPageV1.component';
+import { VERSION_VIEW_GLOSSARY_PERMISSION } from '../../mocks/Glossary.mock';
+import {
+  addGlossaryTerm,
+  getFirstLevelGlossaryTerms,
+  ListGlossaryTermsParams,
+  patchGlossaryTerm,
+} from '../../rest/glossaryAPI';
 import { getEntityDeleteMessage } from '../../utils/CommonUtils';
-import { generateTreeData } from '../../utils/GlossaryUtils';
-import { getGlossaryPath } from '../../utils/RouterUtils';
-import SVGIcons, { Icons } from '../../utils/SvgUtils';
-import { Button } from '../buttons/Button/Button';
-import ErrorPlaceHolder from '../common/error-with-placeholder/ErrorPlaceHolder';
-import NonAdminAction from '../common/non-admin-action/NonAdminAction';
-import Searchbar from '../common/searchbar/Searchbar';
-import TitleBreadcrumb from '../common/title-breadcrumb/title-breadcrumb.component';
-import { TitleBreadcrumbProps } from '../common/title-breadcrumb/title-breadcrumb.interface';
-import TreeView from '../common/TreeView/TreeView.component';
-import PageLayout from '../containers/PageLayout';
-import GlossaryDetails from '../GlossaryDetails/GlossaryDetails.component';
-import GlossaryTermsV1 from '../GlossaryTerms/GlossaryTermsV1.component';
-import Loader from '../Loader/Loader';
+import { updateGlossaryTermByFqn } from '../../utils/GlossaryUtils';
+import { DEFAULT_ENTITY_PERMISSION } from '../../utils/PermissionsUtils';
+import { showErrorToast } from '../../utils/ToastUtils';
+import Loader from '../common/Loader/Loader';
 import EntityDeleteModal from '../Modals/EntityDeleteModal/EntityDeleteModal';
-
-type Props = {
-  assetData: GlossaryTermAssets;
-  deleteStatus: LoadingState;
-  isSearchResultEmpty: boolean;
-  isHasAccess: boolean;
-  glossaryList: ModifiedGlossaryData[];
-  selectedKey: string;
-  expandedKey: string[];
-  loadingKey: string[];
-  handleExpandedKey: (key: string[]) => void;
-  handleSelectedKey?: (key: string) => void;
-  searchText: string;
-  selectedData: Glossary | GlossaryTerm;
-  isGlossaryActive: boolean;
-  currentPage: number;
-  handleAddGlossaryClick: () => void;
-  handleAddGlossaryTermClick: () => void;
-  updateGlossary: (value: Glossary) => void;
-  handleGlossaryTermUpdate: (value: GlossaryTerm) => void;
-  handleSelectedData: (key: string) => void;
-  handleChildLoading: (status: boolean) => void;
-  handleSearchText: (text: string) => void;
-  onGlossaryDelete: (id: string) => void;
-  onGlossaryTermDelete: (id: string) => void;
-  onAssetPaginate: (num: string | number, activePage?: number) => void;
-  onRelatedTermClick?: (fqn: string) => void;
-  handleUserRedirection?: (name: string) => void;
-  isChildLoading: boolean;
-};
+import { GlossaryTermForm } from './AddGlossaryTermForm/AddGlossaryTermForm.interface';
+import GlossaryDetails from './GlossaryDetails/GlossaryDetails.component';
+import GlossaryTermModal from './GlossaryTermModal/GlossaryTermModal.component';
+import GlossaryTermsV1 from './GlossaryTerms/GlossaryTermsV1.component';
+import { GlossaryV1Props } from './GlossaryV1.interfaces';
+import './glossaryV1.less';
+import ImportGlossary from './ImportGlossary/ImportGlossary';
+import { ModifiedGlossary, useGlossaryStore } from './useGlossary.store';
 
 const GlossaryV1 = ({
-  assetData,
-  deleteStatus = 'initial',
-  isSearchResultEmpty,
-  isHasAccess,
-  glossaryList,
-  selectedKey,
-  expandedKey,
-  loadingKey,
-  handleExpandedKey,
-  handleUserRedirection,
-  searchText,
-  selectedData,
   isGlossaryActive,
-  isChildLoading,
-  handleSelectedData,
-  handleAddGlossaryClick,
-  handleAddGlossaryTermClick,
-  handleGlossaryTermUpdate,
+  selectedData,
+  onGlossaryTermUpdate,
   updateGlossary,
-  handleChildLoading,
-  handleSearchText,
+  updateVote,
   onGlossaryDelete,
   onGlossaryTermDelete,
-  onAssetPaginate,
-  onRelatedTermClick,
-  currentPage,
-}: Props) => {
-  const { isAdminUser } = useAuth();
-  const { isAuthDisabled } = useAuthContext();
-  const treeRef = useRef<RcTree<DataNode>>(null);
-  const [treeData, setTreeData] = useState<DataNode[]>([]);
-  const [breadcrumb, setBreadcrumb] = useState<
-    TitleBreadcrumbProps['titleLinks']
-  >([]);
-  const [showActions, setShowActions] = useState(false);
+  isVersionsView,
+  onAssetClick,
+  isSummaryPanelOpen,
+  refreshActiveGlossaryTerm,
+}: GlossaryV1Props) => {
+  const { t } = useTranslation();
+  const { action, tab } =
+    useParams<{ action: EntityAction; glossaryName: string; tab: string }>();
+
+  const history = useHistory();
+  const [activeGlossaryTerm, setActiveGlossaryTerm] =
+    useState<GlossaryTerm | null>(null);
+  const { getEntityPermission } = usePermissionProvider();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isTermsLoading, setIsTermsLoading] = useState(false);
+  const [isPermissionLoading, setIsPermissionLoading] = useState(false);
+
   const [isDelete, setIsDelete] = useState<boolean>(false);
-  const [addTermButtonWidth, setAddTermButtonWidth] = useState(
-    document.getElementById('add-term-button')?.offsetWidth || 0
-  );
-  const [manageButtonWidth, setManageButtonWidth] = useState(
-    document.getElementById('manage-button')?.offsetWidth || 0
-  );
-  const [leftPanelWidth, setLeftPanelWidth] = useState(
-    document.getElementById('glossary-left-panel')?.offsetWidth || 0
+
+  const [glossaryPermission, setGlossaryPermission] =
+    useState<OperationPermission>(DEFAULT_ENTITY_PERMISSION);
+
+  const [glossaryTermPermission, setGlossaryTermPermission] =
+    useState<OperationPermission>(DEFAULT_ENTITY_PERMISSION);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const [editMode, setEditMode] = useState(false);
+
+  const {
+    activeGlossary,
+    glossaryChildTerms,
+    setGlossaryChildTerms,
+    insertNewGlossaryTermToChildTerms,
+  } = useGlossaryStore();
+
+  const { id, fullyQualifiedName } = activeGlossary ?? {};
+
+  const isImportAction = useMemo(
+    () => action === EntityAction.IMPORT,
+    [action]
   );
 
-  /**
-   * To create breadcrumb from the fqn
-   * @param fqn fqn of glossary or glossary term
-   */
-  const handleBreadcrum = (fqn: string) => {
-    const arr = fqn.split(FQN_SEPARATOR_CHAR);
-    const dataFQN: Array<string> = [];
-    const newData = arr.map((d, i) => {
-      dataFQN.push(d);
-      const isLink = i < arr.length - 1;
-
-      return {
-        name: d,
-        url: isLink ? getGlossaryPath(dataFQN.join(FQN_SEPARATOR_CHAR)) : '',
-        activeTitle: isLink,
-      };
-    });
-    setBreadcrumb(newData);
+  const fetchGlossaryTerm = async (
+    params?: ListGlossaryTermsParams,
+    refresh?: boolean
+  ) => {
+    refresh ? setIsTermsLoading(true) : setIsLoading(true);
+    try {
+      const { data } = await getFirstLevelGlossaryTerms(
+        params?.glossary ?? params?.parent ?? ''
+      );
+      // We are considering childrenCount fot expand collapse state
+      // Hence don't need any intervention to list response here
+      setGlossaryChildTerms(data as ModifiedGlossary[]);
+    } catch (error) {
+      showErrorToast(error as AxiosError);
+    } finally {
+      refresh ? setIsTermsLoading(false) : setIsLoading(false);
+    }
   };
 
-  const handleDelete = () => {
+  const fetchGlossaryPermission = async () => {
+    try {
+      const response = await getEntityPermission(
+        ResourceEntity.GLOSSARY,
+        selectedData?.id as string
+      );
+      setGlossaryPermission(response);
+    } catch (error) {
+      showErrorToast(error as AxiosError);
+    }
+  };
+
+  const fetchGlossaryTermPermission = async () => {
+    try {
+      const response = await getEntityPermission(
+        ResourceEntity.GLOSSARY_TERM,
+        selectedData?.id as string
+      );
+      setGlossaryTermPermission(response);
+    } catch (error) {
+      showErrorToast(error as AxiosError);
+    }
+  };
+
+  const handleDelete = async () => {
     const { id } = selectedData;
     if (isGlossaryActive) {
-      onGlossaryDelete(id);
+      await onGlossaryDelete(id);
     } else {
-      onGlossaryTermDelete(id);
+      await onGlossaryTermDelete(id);
     }
     setIsDelete(false);
   };
 
-  const handleTreeClick = (
-    _event: React.MouseEvent<HTMLElement, MouseEvent>,
-    node: EventDataNode
+  const loadGlossaryTerms = useCallback(
+    (refresh = false) => {
+      fetchGlossaryTerm(
+        isGlossaryActive
+          ? { glossary: fullyQualifiedName }
+          : { parent: fullyQualifiedName },
+        refresh
+      );
+    },
+    [fullyQualifiedName, isGlossaryActive]
+  );
+
+  const handleGlossaryTermModalAction = (
+    editMode: boolean,
+    glossaryTerm: GlossaryTerm | null
   ) => {
-    const key = node.key as string;
-    if (selectedKey !== key) {
-      handleChildLoading(true);
-      handleSelectedData(key);
+    setEditMode(editMode);
+    setActiveGlossaryTerm(glossaryTerm);
+    setIsEditModalOpen(true);
+  };
+
+  const updateGlossaryTermInStore = (updatedTerm: GlossaryTerm) => {
+    const clonedTerms = cloneDeep(glossaryChildTerms);
+    const updatedGlossaryTerms = updateGlossaryTermByFqn(
+      clonedTerms,
+      updatedTerm.fullyQualifiedName ?? '',
+      updatedTerm as ModifiedGlossary
+    );
+
+    setGlossaryChildTerms(updatedGlossaryTerms);
+  };
+
+  const updateGlossaryTerm = async (
+    currentData: GlossaryTerm,
+    updatedData: GlossaryTerm
+  ) => {
+    try {
+      const jsonPatch = compare(currentData, updatedData);
+      const response = await patchGlossaryTerm(currentData?.id, jsonPatch);
+      if (!response) {
+        throw t('server.entity-updating-error', {
+          entity: t('label.glossary-term'),
+        });
+      } else {
+        updateGlossaryTermInStore({
+          ...response,
+          // Since patch didn't respond with childrenCount preserve it from currentData
+          childrenCount: currentData.childrenCount,
+        });
+        setIsEditModalOpen(false);
+      }
+    } catch (error) {
+      if (
+        (error as AxiosError).response?.status === HTTP_STATUS_CODE.CONFLICT
+      ) {
+        showErrorToast(
+          t('server.entity-already-exist', {
+            entity: t('label.glossary-term'),
+            entityPlural: t('label.glossary-term-lowercase-plural'),
+            name: updatedData.name,
+          })
+        );
+      } else {
+        showErrorToast(
+          error as AxiosError,
+          t('server.entity-updating-error', {
+            entity: t('label.glossary-term-lowercase'),
+          })
+        );
+      }
+    }
+  };
+
+  const onTermModalSuccess = useCallback(
+    (term: GlossaryTerm) => {
+      // Setting loading so that nested terms are rendered again on table with change
+      setIsTermsLoading(true);
+      // Update store with newly created term
+      insertNewGlossaryTermToChildTerms(term);
+      if (!isGlossaryActive && tab !== 'terms') {
+        history.push(
+          getGlossaryTermDetailsPath(
+            selectedData.fullyQualifiedName || '',
+            EntityTabs.TERMS
+          )
+        );
+      }
+      // Close modal and set loading to false
+      setIsEditModalOpen(false);
+      setIsTermsLoading(false);
+    },
+    [isGlossaryActive, tab, selectedData]
+  );
+
+  const handleGlossaryTermAdd = async (formData: GlossaryTermForm) => {
+    try {
+      const term = await addGlossaryTerm({
+        ...formData,
+        glossary:
+          activeGlossaryTerm?.glossary?.name ||
+          (selectedData.fullyQualifiedName ?? ''),
+        parent: activeGlossaryTerm?.fullyQualifiedName,
+      });
+
+      onTermModalSuccess(term);
+    } catch (error) {
+      if (
+        (error as AxiosError).response?.status === HTTP_STATUS_CODE.CONFLICT
+      ) {
+        showErrorToast(
+          t('server.entity-already-exist', {
+            entity: t('label.glossary-term'),
+            entityPlural: t('label.glossary-term-lowercase-plural'),
+            name: formData.name,
+          })
+        );
+      } else {
+        showErrorToast(
+          error as AxiosError,
+          t('server.create-entity-error', {
+            entity: t('label.glossary-term-lowercase'),
+          })
+        );
+      }
+    }
+  };
+
+  const handleGlossaryTermSave = async (formData: GlossaryTermForm) => {
+    const newTermData = cloneDeep(activeGlossaryTerm);
+    if (editMode) {
+      if (newTermData && activeGlossaryTerm) {
+        const {
+          name,
+          displayName,
+          description,
+          synonyms,
+          tags,
+          references,
+          mutuallyExclusive,
+          reviewers,
+          owners,
+          relatedTerms,
+          style,
+        } = formData || {};
+
+        newTermData.name = name;
+        newTermData.style = style;
+        newTermData.displayName = displayName;
+        newTermData.description = description;
+        newTermData.synonyms = synonyms;
+        newTermData.tags = tags;
+        newTermData.mutuallyExclusive = mutuallyExclusive;
+        newTermData.reviewers = reviewers;
+        newTermData.owners = owners;
+        newTermData.references = references;
+        newTermData.relatedTerms = relatedTerms?.map((term) => ({
+          id: term,
+          type: 'glossaryTerm',
+        }));
+        await updateGlossaryTerm(activeGlossaryTerm, newTermData);
+      }
+    } else {
+      await handleGlossaryTermAdd(formData);
+    }
+  };
+
+  const handleGlossaryUpdate = async (newGlossary: Glossary) => {
+    const jsonPatch = compare(selectedData, newGlossary);
+
+    const shouldRefreshTerms = jsonPatch.some((patch) =>
+      patch.path.startsWith('/owners')
+    );
+
+    await updateGlossary(newGlossary);
+    shouldRefreshTerms && loadGlossaryTerms(true);
+  };
+
+  const initPermissions = async () => {
+    setIsPermissionLoading(true);
+    const permissionFetch = isGlossaryActive
+      ? fetchGlossaryPermission
+      : fetchGlossaryTermPermission;
+
+    try {
+      if (isVersionsView) {
+        isGlossaryActive
+          ? setGlossaryPermission(VERSION_VIEW_GLOSSARY_PERMISSION)
+          : setGlossaryTermPermission(VERSION_VIEW_GLOSSARY_PERMISSION);
+      } else {
+        await permissionFetch();
+      }
+    } finally {
+      setIsPermissionLoading(false);
     }
   };
 
   useEffect(() => {
-    if (glossaryList.length) {
-      const generatedData = generateTreeData(glossaryList);
-      setTreeData(generatedData);
+    if (id && !action) {
+      loadGlossaryTerms();
+      initPermissions();
     }
-  }, [glossaryList]);
+  }, [id, isGlossaryActive, isVersionsView, action]);
 
-  useEffect(() => {
-    handleBreadcrum(selectedKey);
-  }, [selectedKey]);
-
-  useAfterMount(() => {
-    setLeftPanelWidth(
-      document.getElementById('glossary-left-panel')?.offsetWidth || 0
-    );
-    setAddTermButtonWidth(
-      document.getElementById('add-term-button')?.offsetWidth || 0
-    );
-    setManageButtonWidth(
-      document.getElementById('manage-button')?.offsetWidth || 0
-    );
-  });
-
-  const manageButtonContent = () => {
-    return (
-      <div
-        className="tw-flex tw-items-center tw-gap-5 tw-p-1.5 tw-cursor-pointer"
-        id="manage-button"
-        onClick={() => setIsDelete(true)}>
-        <div>
-          <SVGIcons
-            alt="Delete"
-            className="tw-w-12"
-            icon={Icons.DELETE_GRADIANT}
-          />
-        </div>
-        <div className="tw-text-left" data-testid="delete-button">
-          <p className="tw-font-medium">
-            Delete Glossary “{selectedData?.displayName || selectedData?.name}”
-          </p>
-          <p className="tw-text-grey-muted tw-text-xs">
-            Deleting this Glossary{' '}
-            {(selectedData as GlossaryTerm)?.glossary && 'Term'} will
-            permanently remove its metadata from OpenMetadata.
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  const fetchLeftPanel = () => {
-    return (
-      <div className="tw-h-full tw-px-2" id="glossary-left-panel">
-        <div className="tw-bg-white tw-shadow-box tw-border tw-border-border-gray tw-rounded-md tw-h-full tw-py-2">
-          <div className="tw-flex tw-justify-between tw-items-center tw-px-3">
-            <h6 className="tw-heading tw-text-base">Glossary</h6>
-          </div>
-          <div>
-            {treeData.length ? (
-              <Fragment>
-                <div className="tw-px-3 tw-mb-3">
-                  <Searchbar
-                    showLoadingStatus
-                    placeholder="Search term..."
-                    searchValue={searchText}
-                    typingInterval={500}
-                    onSearch={handleSearchText}
-                  />
-                  <NonAdminAction
-                    position="bottom"
-                    title={TITLE_FOR_NON_ADMIN_ACTION}>
-                    <button
-                      className="tw--mt-1 tw-w-full tw-flex-center tw-gap-2 tw-py-1 tw-text-primary tw-border tw-rounded-md"
-                      onClick={handleAddGlossaryClick}>
-                      <SVGIcons alt="plus" icon={Icons.ICON_PLUS_PRIMERY} />{' '}
-                      <span>Add Glossary</span>
-                    </button>
-                  </NonAdminAction>
-                </div>
-                {isSearchResultEmpty ? (
-                  <p className="tw-text-grey-muted tw-text-center">
-                    {searchText ? (
-                      <span>{`No Glossary found for "${searchText}"`}</span>
-                    ) : (
-                      <span>No Glossary found</span>
-                    )}
-                  </p>
-                ) : (
-                  <TreeView
-                    expandedKeys={expandedKey}
-                    handleClick={handleTreeClick}
-                    handleExpand={(key) => handleExpandedKey(key as string[])}
-                    loadingKey={loadingKey}
-                    ref={treeRef}
-                    selectedKeys={[selectedKey]}
-                    treeData={treeData}
-                  />
-                )}
-              </Fragment>
-            ) : (
-              <Loader />
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return glossaryList.length ? (
-    <PageLayout classes="tw-h-full tw-px-6" leftPanel={fetchLeftPanel()}>
-      <div
-        className="tw-flex tw-justify-between tw-items-center"
-        data-testid="header">
-        <div
-          className="tw-heading tw-text-link tw-text-base"
-          data-testid="category-name">
-          <TitleBreadcrumb
-            titleLinks={breadcrumb}
-            widthDeductions={
-              leftPanelWidth + addTermButtonWidth + manageButtonWidth + 20 // Additional deduction for margin on the right of leftPanel
-            }
-          />
-        </div>
-        <div className="tw-relative tw-mr-2 tw--mt-2" id="add-term-button">
-          <NonAdminAction position="bottom" title={TITLE_FOR_NON_ADMIN_ACTION}>
-            <Button
-              className={classNames('tw-h-8 tw-rounded tw-mb-1 tw-mr-2', {
-                'tw-opacity-40': isHasAccess,
-              })}
-              data-testid="add-new-tag-button"
-              size="small"
-              theme="primary"
-              variant="contained"
-              onClick={handleAddGlossaryTermClick}>
-              Add term
-            </Button>
-          </NonAdminAction>
-          <NonAdminAction position="bottom" title={TITLE_FOR_NON_ADMIN_ACTION}>
-            <Button
-              className="tw-h-8 tw-rounded tw-mb-1 tw-flex"
-              data-testid="manage-button"
-              disabled={isHasAccess}
-              size="small"
-              theme="primary"
-              variant="outlined"
-              onClick={() => setShowActions(true)}>
-              <span className="tw-mr-2">Manage</span>
-              <Tooltip
-                arrow
-                arrowSize="big"
-                disabled={!isAuthDisabled && !isAdminUser}
-                html={manageButtonContent()}
-                open={showActions}
-                position="bottom-end"
-                theme="light"
-                onRequestClose={() => setShowActions(false)}>
-                <span>
-                  <FontAwesomeIcon icon="ellipsis-vertical" />
-                </span>
-              </Tooltip>
-            </Button>
-          </NonAdminAction>
-        </div>
-      </div>
-      {isChildLoading ? (
-        <Loader />
-      ) : (
+  return isImportAction ? (
+    <ImportGlossary glossaryName={selectedData.fullyQualifiedName ?? ''} />
+  ) : (
+    <>
+      {(isLoading || isPermissionLoading) && <Loader />}
+      {!isLoading &&
+        !isPermissionLoading &&
         !isEmpty(selectedData) &&
         (isGlossaryActive ? (
           <GlossaryDetails
-            glossary={selectedData as Glossary}
-            handleUserRedirection={handleUserRedirection}
-            isHasAccess={isHasAccess}
-            updateGlossary={updateGlossary}
+            handleGlossaryDelete={onGlossaryDelete}
+            isVersionView={isVersionsView}
+            permissions={glossaryPermission}
+            refreshGlossaryTerms={() => loadGlossaryTerms(true)}
+            termsLoading={isTermsLoading}
+            updateGlossary={handleGlossaryUpdate}
+            updateVote={updateVote}
+            onAddGlossaryTerm={(term) =>
+              handleGlossaryTermModalAction(false, term ?? null)
+            }
+            onEditGlossaryTerm={(term) =>
+              handleGlossaryTermModalAction(true, term ?? null)
+            }
           />
         ) : (
           <GlossaryTermsV1
-            assetData={assetData}
-            currentPage={currentPage}
             glossaryTerm={selectedData as GlossaryTerm}
-            handleGlossaryTermUpdate={handleGlossaryTermUpdate}
-            handleUserRedirection={handleUserRedirection}
-            isHasAccess={isHasAccess}
-            onAssetPaginate={onAssetPaginate}
-            onRelatedTermClick={onRelatedTermClick}
+            handleGlossaryTermDelete={onGlossaryTermDelete}
+            handleGlossaryTermUpdate={onGlossaryTermUpdate}
+            isSummaryPanelOpen={isSummaryPanelOpen}
+            isVersionView={isVersionsView}
+            permissions={glossaryTermPermission}
+            refreshActiveGlossaryTerm={refreshActiveGlossaryTerm}
+            refreshGlossaryTerms={() => loadGlossaryTerms(true)}
+            termsLoading={isTermsLoading}
+            updateVote={updateVote}
+            onAddGlossaryTerm={(term) =>
+              handleGlossaryTermModalAction(false, term ?? null)
+            }
+            onAssetClick={onAssetClick}
+            onEditGlossaryTerm={(term) =>
+              handleGlossaryTermModalAction(true, term)
+            }
           />
-        ))
-      )}
-      {selectedData && isDelete && (
+        ))}
+
+      {selectedData && (
         <EntityDeleteModal
           bodyText={getEntityDeleteMessage(selectedData.name, '')}
           entityName={selectedData.name}
           entityType="Glossary"
-          loadingState={deleteStatus}
+          visible={isDelete}
           onCancel={() => setIsDelete(false)}
           onConfirm={handleDelete}
         />
       )}
-    </PageLayout>
-  ) : (
-    <PageLayout>
-      <ErrorPlaceHolder>
-        <p className="tw-text-center">No glossaries found</p>
-        <p className="tw-text-center">
-          <NonAdminAction position="bottom" title={TITLE_FOR_NON_ADMIN_ACTION}>
-            <Button
-              className={classNames('tw-h-8 tw-rounded tw-my-3', {
-                'tw-opacity-40': !isAdminUser && !isAuthDisabled,
-              })}
-              data-testid="add-webhook-button"
-              size="small"
-              theme="primary"
-              variant="contained"
-              onClick={handleAddGlossaryClick}>
-              Add New Glossary
-            </Button>
-          </NonAdminAction>
-        </p>
-      </ErrorPlaceHolder>
-    </PageLayout>
+
+      {isEditModalOpen && (
+        <GlossaryTermModal
+          editMode={editMode}
+          glossaryTermFQN={activeGlossaryTerm?.fullyQualifiedName}
+          visible={isEditModalOpen}
+          onCancel={() => setIsEditModalOpen(false)}
+          onSave={handleGlossaryTermSave}
+        />
+      )}
+    </>
   );
 };
 
-export default GlossaryV1;
+export default withActivityFeed(GlossaryV1);

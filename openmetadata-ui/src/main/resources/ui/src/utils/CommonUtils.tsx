@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,55 +11,65 @@
  *  limitations under the License.
  */
 
-import { AxiosError, AxiosResponse } from 'axios';
+/* eslint-disable @typescript-eslint/ban-types */
+
+import { DefaultOptionType } from 'antd/lib/select';
+import { AxiosError } from 'axios';
 import classNames from 'classnames';
-import { capitalize, isEmpty, isNull, isUndefined } from 'lodash';
+import { t } from 'i18next';
 import {
-  EntityFieldThreadCount,
+  capitalize,
+  get,
+  isEmpty,
+  isNil,
+  isNull,
+  isString,
+  isUndefined,
+  toLower,
+  toNumber,
+} from 'lodash';
+import {
+  CurrentState,
+  ExtraInfo,
   RecentlySearched,
   RecentlySearchedData,
   RecentlyViewed,
   RecentlyViewedData,
 } from 'Models';
-import React, { FormEvent } from 'react';
+import React, { ReactNode } from 'react';
+import { Trans } from 'react-i18next';
 import { reactLocalStorage } from 'reactjs-localstorage';
-import AppState from '../AppState';
-import { getFeedCount } from '../axiosAPIs/feedsAPI';
-import { Button } from '../components/buttons/Button/Button';
+import ErrorPlaceHolder from '../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
+import Loader from '../components/common/Loader/Loader';
 import { FQN_SEPARATOR_CHAR } from '../constants/char.constants';
 import {
   imageTypes,
   LOCALSTORAGE_RECENTLY_SEARCHED,
   LOCALSTORAGE_RECENTLY_VIEWED,
-  TITLE_FOR_NON_OWNER_ACTION,
 } from '../constants/constants';
-import {
-  UrlEntityCharRegEx,
-  validEmailRegEx,
-} from '../constants/regex.constants';
-import { EntityType, FqnPart, TabSpecificField } from '../enums/entity.enum';
-import { Ownership } from '../enums/mydata.enum';
-import { ThreadTaskStatus, ThreadType } from '../generated/entity/feed/thread';
+import { BASE_COLORS } from '../constants/DataInsight.constants';
+import { FEED_COUNT_INITIAL_DATA } from '../constants/entity.constants';
+import { VALIDATE_ESCAPE_START_END_REGEX } from '../constants/regex.constants';
+import { SIZE } from '../enums/common.enum';
+import { EntityType, FqnPart } from '../enums/entity.enum';
 import { EntityReference, User } from '../generated/entity/teams/user';
-import jsonData from '../jsons/en';
-import { getEntityFeedLink, getTitleCase } from './EntityUtils';
+import { TagLabel } from '../generated/type/tagLabel';
+import { FeedCounts } from '../interface/feed.interface';
+import { SearchSourceAlias } from '../interface/search.interface';
+import { getFeedCount } from '../rest/feedsAPI';
+import { getEntityFeedLink } from './EntityUtils';
 import Fqn from './Fqn';
-import { getExplorePathWithInitFilters } from './RouterUtils';
-import { serviceTypeLogo } from './ServiceUtils';
-import SVGIcons, { Icons } from './SvgUtils';
-import { TASK_ENTITIES } from './TasksUtils';
+import { history } from './HistoryUtils';
+import serviceUtilClassBase from './ServiceUtilClassBase';
 import { showErrorToast } from './ToastUtils';
 
-export const arraySorterByKey = (
-  key: string,
+export const arraySorterByKey = <T extends object>(
+  key: keyof T,
   sortDescending = false
-): Function => {
+) => {
   const sortOrder = sortDescending ? -1 : 1;
 
-  return (
-    elementOne: { [x: string]: number | string },
-    elementTwo: { [x: string]: number | string }
-  ) => {
+  return (elementOne: T, elementTwo: T) => {
     return (
       (elementOne[key] < elementTwo[key]
         ? -1
@@ -70,22 +80,13 @@ export const arraySorterByKey = (
   };
 };
 
-export const isEven = (value: number): boolean => {
-  return value % 2 === 0;
-};
-
-export const getTableFQNFromColumnFQN = (columnFQN: string): string => {
-  const arrColFQN = columnFQN.split(FQN_SEPARATOR_CHAR);
-
-  return arrColFQN.slice(0, arrColFQN.length - 1).join(FQN_SEPARATOR_CHAR);
-};
-
 export const getPartialNameFromFQN = (
   fqn: string,
   arrTypes: Array<'service' | 'database' | 'table' | 'column'> = [],
-  joinSeperator = '/'
+  joinSeparator = '/'
 ): string => {
   const arrFqn = Fqn.split(fqn);
+
   const arrPartialName = [];
   for (const type of arrTypes) {
     if (type === 'service' && arrFqn.length > 0) {
@@ -99,8 +100,17 @@ export const getPartialNameFromFQN = (
     }
   }
 
-  return arrPartialName.join(joinSeperator);
+  return arrPartialName.join(joinSeparator);
 };
+
+/**
+ * Retrieves a partial name from a fully qualified name (FQN) for tables.
+ *
+ * @param {string} fqn - The fully qualified name. It should be a decoded string.
+ * @param {Array<FqnPart>} fqnParts - The parts of the FQN to include in the partial name. Defaults to an empty array.
+ * @param {string} joinSeparator - The separator used to join the parts of the partial name. Defaults to '/'.
+ * @return {string} The partial name derived from the FQN.
+ */
 
 export const getPartialNameFromTableFQN = (
   fqn: string,
@@ -118,6 +128,27 @@ export const getPartialNameFromTableFQN = (
 
     return splitFqn.slice(4).join(FQN_SEPARATOR_CHAR);
   }
+
+  if (fqnParts.includes(FqnPart.Topic)) {
+    // Remove the first 2 parts ( service, database)
+    return splitFqn.slice(2).join(FQN_SEPARATOR_CHAR);
+  }
+
+  if (fqnParts.includes(FqnPart.ApiEndpoint)) {
+    // Remove the first 3 parts ( service, database, schema)
+    return splitFqn.slice(3).join(FQN_SEPARATOR_CHAR);
+  }
+
+  if (fqnParts.includes(FqnPart.SearchIndexField)) {
+    // Remove the first 2 parts ( service, searchIndex)
+    return splitFqn.slice(2).join(FQN_SEPARATOR_CHAR);
+  }
+
+  if (fqnParts.includes(FqnPart.TestCase)) {
+    // Get the last Part of the Fqn
+    return splitFqn.splice(-1).join(FQN_SEPARATOR_CHAR);
+  }
+
   const arrPartialName = [];
   if (splitFqn.length > 0) {
     if (fqnParts.includes(FqnPart.Service)) {
@@ -140,15 +171,12 @@ export const getPartialNameFromTableFQN = (
   return arrPartialName.join(joinSeparator);
 };
 
-export const getCurrentUserId = (): string => {
-  // TODO: Replace below with USERID from Logged-in data
-  const { id: userId } = !isEmpty(AppState.userDetails)
-    ? AppState.userDetails
-    : AppState.users?.length
-    ? AppState.users[0]
-    : { id: undefined };
-
-  return userId as string;
+export const getTableFQNFromColumnFQN = (columnFQN: string): string => {
+  return getPartialNameFromTableFQN(
+    columnFQN,
+    [FqnPart.Service, FqnPart.Database, FqnPart.Schema, FqnPart.Table],
+    '.'
+  );
 };
 
 export const pluralize = (count: number, noun: string, suffix = 's') => {
@@ -166,23 +194,17 @@ export const pluralize = (count: number, noun: string, suffix = 's') => {
   }
 };
 
-export const hasEditAccess = (type: string, id: string) => {
-  const loggedInUser = AppState.getCurrentUserDetails();
-  if (type === 'user') {
-    return id === loggedInUser?.id;
-  } else {
-    return Boolean(
-      loggedInUser?.teams?.length &&
-        loggedInUser?.teams?.some((team) => team.id === id)
-    );
-  }
-};
-
-export const getTabClasses = (
-  tab: number | string,
-  activeTab: number | string
-) => {
-  return 'tw-gh-tabs' + (activeTab === tab ? ' active' : '');
+export const hasEditAccess = (owners: EntityReference[], currentUser: User) => {
+  return owners.some((owner) => {
+    if (owner.type === 'user') {
+      return owner.id === currentUser.id;
+    } else {
+      return Boolean(
+        currentUser.teams?.length &&
+          currentUser.teams.some((team) => team.id === owner.id)
+      );
+    }
+  });
 };
 
 export const getCountBadge = (
@@ -193,17 +215,20 @@ export const getCountBadge = (
   const clsBG = isUndefined(isActive)
     ? ''
     : isActive
-    ? 'tw-bg-primary tw-text-white tw-border-none'
-    : 'tw-bg-badge';
+    ? 'bg-primary text-white no-border'
+    : 'ant-tag';
 
   return (
     <span
       className={classNames(
-        'tw-py-px tw-px-1 tw-mx-1 tw-border tw-rounded tw-text-xs tw-min-w-badgeCount tw-text-center',
+        'p-x-xss m-x-xss global-border rounded-4 text-center',
         clsBG,
         className
       )}>
-      <span data-testid="filter-count" title={count.toString()}>
+      <span
+        className="text-xs"
+        data-testid="filter-count"
+        title={count.toString()}>
         {count}
       </span>
     </span>
@@ -217,17 +242,6 @@ export const getRecentlyViewedData = (): Array<RecentlyViewedData> => {
 
   if (recentlyViewed?.data) {
     return recentlyViewed.data;
-  }
-
-  return [];
-};
-
-export const getRecentlySearchedData = (): Array<RecentlySearchedData> => {
-  const recentlySearch: RecentlySearched = reactLocalStorage.getObject(
-    LOCALSTORAGE_RECENTLY_SEARCHED
-  ) as RecentlySearched;
-  if (recentlySearch?.data) {
-    return recentlySearch.data;
   }
 
   return [];
@@ -258,14 +272,9 @@ export const addToRecentSearched = (searchTerm: string): void => {
     let arrSearchedData: RecentlySearched['data'] = [];
     if (recentlySearch?.data) {
       const arrData = recentlySearch.data
-        // search term is not case-insensetive.
+        // search term is not case-insensitive.
         .filter((item) => item.term !== searchData.term)
-        .sort(
-          arraySorterByKey('timestamp', true) as (
-            a: RecentlySearchedData,
-            b: RecentlySearchedData
-          ) => number
-        );
+        .sort(arraySorterByKey<RecentlySearchedData>('timestamp', true));
       arrData.unshift(searchData);
 
       if (arrData.length > 5) {
@@ -279,18 +288,6 @@ export const addToRecentSearched = (searchTerm: string): void => {
   }
 };
 
-export const removeRecentSearchTerm = (searchTerm: string) => {
-  const recentlySearch: RecentlySearched = reactLocalStorage.getObject(
-    LOCALSTORAGE_RECENTLY_SEARCHED
-  ) as RecentlySearched;
-  if (recentlySearch?.data) {
-    const arrData = recentlySearch.data.filter(
-      (item) => item.term !== searchTerm
-    );
-    setRecentlySearchedData(arrData);
-  }
-};
-
 export const addToRecentViewed = (eData: RecentlyViewedData): void => {
   const entityData = { ...eData, timestamp: Date.now() };
   let recentlyViewed: RecentlyViewed = reactLocalStorage.getObject(
@@ -299,15 +296,10 @@ export const addToRecentViewed = (eData: RecentlyViewedData): void => {
   if (recentlyViewed?.data) {
     const arrData = recentlyViewed.data
       .filter((item) => item.fqn !== entityData.fqn)
-      .sort(
-        arraySorterByKey('timestamp', true) as (
-          a: RecentlyViewedData,
-          b: RecentlyViewedData
-        ) => number
-      );
+      .sort(arraySorterByKey<RecentlyViewedData>('timestamp', true));
     arrData.unshift(entityData);
 
-    if (arrData.length > 5) {
+    if (arrData.length > 8) {
       arrData.pop();
     }
     recentlyViewed.data = arrData;
@@ -319,62 +311,11 @@ export const addToRecentViewed = (eData: RecentlyViewedData): void => {
   setRecentlyViewedData(recentlyViewed.data);
 };
 
-export const getHtmlForNonAdminAction = (isClaimOwner: boolean) => {
-  return (
-    <>
-      <p>{TITLE_FOR_NON_OWNER_ACTION}</p>
-      {!isClaimOwner ? <p>Claim ownership in Manage </p> : null}
-    </>
-  );
-};
-
-export const getOwnerIds = (
-  filter: Ownership,
-  userDetails: User,
-  nonSecureUserDetails: User
-): Array<string> => {
-  if (filter === Ownership.OWNER) {
-    if (!isEmpty(userDetails)) {
-      return [
-        ...(userDetails.teams?.map((team) => team.id) || []),
-        userDetails.id,
-      ];
-    } else {
-      if (!isEmpty(nonSecureUserDetails)) {
-        return [
-          ...(nonSecureUserDetails.teams?.map((team) => team.id) || []),
-          nonSecureUserDetails.id,
-        ];
-      } else {
-        return [];
-      }
-    }
-  } else {
-    return [userDetails.id || nonSecureUserDetails.id];
-  }
-};
-
-export const getActiveCatClass = (name: string, activeName = '') => {
-  return activeName === name ? 'activeCategory' : '';
-};
-
 export const errorMsg = (value: string) => {
   return (
-    <div className="tw-mt-1">
+    <div>
       <strong
-        className="tw-text-red-500 tw-text-xs tw-italic"
-        data-testid="error-message">
-        {value}
-      </strong>
-    </div>
-  );
-};
-
-export const validMsg = (value: string) => {
-  return (
-    <div className="tw-mt-1">
-      <strong
-        className="tw-text-success tw-text-xs tw-italic"
+        className="text-xs font-italic text-failure"
         data-testid="error-message">
         {value}
       </strong>
@@ -385,22 +326,9 @@ export const validMsg = (value: string) => {
 export const requiredField = (label: string, excludeSpace = false) => (
   <>
     {label}{' '}
-    <span className="tw-text-red-500">{!excludeSpace && <>&nbsp;</>}*</span>
+    <span className="text-failure">{!excludeSpace && <>&nbsp;</>}*</span>
   </>
 );
-
-export const getSeparator = (
-  title: string | JSX.Element,
-  hrMarginTop = 'tw-mt-2.5'
-) => {
-  return (
-    <span className="tw-flex tw-py-2 tw-text-grey-muted">
-      <hr className={classNames('tw-w-full', hrMarginTop)} />
-      {title && <span className="tw-px-0.5 tw-min-w-max">{title}</span>}
-      <hr className={classNames('tw-w-full', hrMarginTop)} />
-    </span>
-  );
-};
 
 export const getImages = (imageUri: string) => {
   const imagesObj: typeof imageTypes = imageTypes;
@@ -418,7 +346,9 @@ export const getServiceLogo = (
   serviceType: string,
   className = ''
 ): JSX.Element | null => {
-  const logo = serviceTypeLogo(serviceType);
+  const logo = serviceUtilClassBase.getServiceTypeLogo({
+    serviceType,
+  } as SearchSourceAlias);
 
   if (!isNull(logo)) {
     return <img alt="" className={className} src={logo} />;
@@ -427,136 +357,54 @@ export const getServiceLogo = (
   return null;
 };
 
-export const getSvgArrow = (isActive: boolean) => {
-  return isActive ? (
-    <SVGIcons alt="arrow-down" icon={Icons.ARROW_DOWN_PRIMARY} />
-  ) : (
-    <SVGIcons alt="arrow-right" icon={Icons.ARROW_RIGHT_PRIMARY} />
-  );
-};
-
-export const isValidUrl = (href?: string) => {
-  if (!href) {
-    return false;
-  }
-  try {
-    const url = new URL(href);
-
-    return Boolean(url.href);
-  } catch {
-    return false;
-  }
-};
-
-/**
- *
- * @param email - email address string
- * @returns - True|False
- */
-export const isValidEmail = (email?: string) => {
-  let isValid = false;
-  if (email && email.match(validEmailRegEx)) {
-    isValid = true;
-  }
-
-  return isValid;
-};
-
-export const getFields = (defaultFields: string, tabSpecificField: string) => {
-  if (!tabSpecificField) {
-    return defaultFields;
-  }
-  if (!defaultFields) {
-    return tabSpecificField;
-  }
-  if (
-    tabSpecificField === TabSpecificField.LINEAGE ||
-    tabSpecificField === TabSpecificField.ACTIVITY_FEED
-  ) {
-    return defaultFields;
-  }
-
-  return `${defaultFields}, ${tabSpecificField}`;
-};
-
-export const restrictFormSubmit = (e: FormEvent) => {
-  e.preventDefault();
-};
-
 export const getEntityMissingError = (entityType: string, fqn: string) => {
   return (
     <p>
-      {capitalize(entityType)} instance for <strong>{fqn}</strong> not found
+      {capitalize(entityType)} {t('label.instance-lowercase')}{' '}
+      {t('label.for-lowercase')} <strong>{fqn}</strong>{' '}
+      {t('label.not-found-lowercase')}
     </p>
   );
 };
 
-export const getDocButton = (label: string, url: string, dataTestId = '') => {
-  return (
-    <Button
-      className="tw-group tw-rounded tw-w-full tw-px-3 tw-py-1.5 tw-text-sm"
-      data-testid={dataTestId}
-      href={url}
-      rel="noopener noreferrer"
-      size="custom"
-      tag="a"
-      target="_blank"
-      theme="primary"
-      variant="outlined">
-      <SVGIcons
-        alt="Doc icon"
-        className="tw-align-middle tw-mr-2 group-hover:tw-hidden"
-        icon={Icons.DOC_PRIMARY}
-        width="14"
-      />
-      <SVGIcons
-        alt="Doc icon"
-        className="tw-align-middle tw-mr-2 tw-hidden group-hover:tw-inline-block"
-        icon={Icons.DOC_WHITE}
-        width="14"
-      />
-      <span>{label}</span>
-      <SVGIcons
-        alt="external-link"
-        className="tw-align-middle tw-ml-2 group-hover:tw-hidden"
-        icon={Icons.EXTERNAL_LINK}
-        width="14"
-      />
-      <SVGIcons
-        alt="external-link"
-        className="tw-align-middle tw-ml-2 tw-hidden group-hover:tw-inline-block"
-        icon={Icons.EXTERNAL_LINK_WHITE}
-        width="14"
-      />
-    </Button>
-  );
-};
-
 export const getNameFromFQN = (fqn: string): string => {
-  const arr = fqn.split(FQN_SEPARATOR_CHAR);
+  let arr: string[] = [];
+
+  // Check for fqn containing name inside double quotes which can contain special characters such as '/', '.' etc.
+  // Example: sample_data.example_table."example.sample/fqn"
+
+  // Regular expression which matches pattern like '."some content"' at the end of string
+  // Example in string 'sample_data."example_table"."example.sample/fqn"',
+  // this regular expression  will match '."example.sample/fqn"'
+  const regexForQuoteInFQN = /(\."[^"]+")$/g;
+
+  if (regexForQuoteInFQN.test(fqn)) {
+    arr = fqn.split('"');
+
+    return arr[arr.length - 2];
+  }
+
+  arr = fqn.split(FQN_SEPARATOR_CHAR);
 
   return arr[arr.length - 1];
 };
 
 export const getRandomColor = (name: string) => {
   const firstAlphabet = name.charAt(0).toLowerCase();
-  const asciiCode = firstAlphabet.charCodeAt(0);
-  const colorNum =
-    asciiCode.toString() + asciiCode.toString() + asciiCode.toString();
+  // Convert the user's name to a numeric value
+  let nameValue = 0;
+  for (let i = 0; i < name.length; i++) {
+    nameValue += name.charCodeAt(i) * 8;
+  }
 
-  const num = Math.round(0xffffff * parseInt(colorNum));
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
+  // Generate a random hue based on the name value
+  const hue = nameValue % 360;
 
   return {
-    color: 'rgb(' + r + ', ' + g + ', ' + b + ', 0.6)',
+    color: `hsl(${hue}, 70%, 40%)`,
+    backgroundColor: `hsl(${hue}, 100%, 92%)`,
     character: firstAlphabet.toUpperCase(),
   };
-};
-
-export const isUrlFriendlyName = (value: string) => {
-  return !UrlEntityCharRegEx.test(value);
 };
 
 /**
@@ -598,118 +446,390 @@ export const prepareLabel = (type: string, fqn: string, withQuotes = true) => {
  */
 export const getEntityPlaceHolder = (value: string, isDeleted?: boolean) => {
   if (isDeleted) {
-    return `${value} (Deactivated)`;
+    return `${value} (${t('label.deactivated')})`;
   } else {
     return value;
   }
-};
-
-/**
- * Take entity reference as input and return name for entity
- * @param entity - entity reference
- * @returns - entity name
- */
-export const getEntityName = (entity?: EntityReference) => {
-  return entity?.displayName || entity?.name || '';
-};
-
-export const getEntityDeleteMessage = (entity: string, dependents: string) => {
-  if (dependents) {
-    return `Permanently deleting this ${getTitleCase(
-      entity
-    )} will remove its metadata, as well as the metadata of ${dependents} from OpenMetadata permanently.`;
-  } else {
-    return `Permanently deleting this ${getTitleCase(
-      entity
-    )} will remove its metadata from OpenMetadata permanently.`;
-  }
-};
-
-export const getExploreLinkByFilter = (
-  filter: Ownership,
-  userDetails: User,
-  nonSecureUserDetails: User
-) => {
-  return getExplorePathWithInitFilters(
-    '',
-    undefined,
-    `${filter}=${getOwnerIds(filter, userDetails, nonSecureUserDetails).join()}`
-  );
 };
 
 export const replaceSpaceWith_ = (text: string) => {
   return text.replace(/\s/g, '_');
 };
 
-export const getFeedCounts = (
-  entityType: string,
-  entityFQN: string,
-  conversationCallback: (
-    value: React.SetStateAction<EntityFieldThreadCount[]>
-  ) => void,
-  taskCallback: (value: React.SetStateAction<EntityFieldThreadCount[]>) => void,
-  entityCallback: (value: React.SetStateAction<number>) => void
-) => {
-  // To get conversation count
-  getFeedCount(
-    getEntityFeedLink(entityType, entityFQN),
-    ThreadType.Conversation
-  )
-    .then((res: AxiosResponse) => {
-      if (res.data) {
-        conversationCallback(res.data.counts);
-      } else {
-        throw jsonData['api-error-messages']['fetch-entity-feed-count-error'];
-      }
-    })
-    .catch((err: AxiosError) => {
-      showErrorToast(
-        err,
-        jsonData['api-error-messages']['fetch-entity-feed-count-error']
-      );
-    });
-
-  // To get open tasks count
-  getFeedCount(
-    getEntityFeedLink(entityType, entityFQN),
-    ThreadType.Task,
-    ThreadTaskStatus.Open
-  )
-    .then((res: AxiosResponse) => {
-      if (res.data) {
-        taskCallback(res.data.counts);
-      } else {
-        throw jsonData['api-error-messages']['fetch-entity-feed-count-error'];
-      }
-    })
-    .catch((err: AxiosError) => {
-      showErrorToast(
-        err,
-        jsonData['api-error-messages']['fetch-entity-feed-count-error']
-      );
-    });
-
-  // To get all thread count (task + conversation)
-  getFeedCount(getEntityFeedLink(entityType, entityFQN))
-    .then((res: AxiosResponse) => {
-      if (res.data) {
-        entityCallback(res.data.totalCount);
-      } else {
-        throw jsonData['api-error-messages']['fetch-entity-feed-count-error'];
-      }
-    })
-    .catch((err: AxiosError) => {
-      showErrorToast(
-        err,
-        jsonData['api-error-messages']['fetch-entity-feed-count-error']
-      );
-    });
+export const replaceAllSpacialCharWith_ = (text: string) => {
+  return text.replaceAll(/[&/\\#, +()$~%.'":*?<>{}]/g, '_');
 };
 
 /**
- *
- * @param entityType type of the entity
- * @returns true if entity type exists in TASK_ENTITIES otherwise false
+ * Get feed counts for given entity type and fqn
+ * @param entityType - entity type
+ * @param entityFQN - entity fqn
+ * @param onDataFetched - callback function which return FeedCounts object
  */
-export const isTaskSupported = (entityType: EntityType) =>
-  TASK_ENTITIES.includes(entityType);
+
+export const getFeedCounts = async (
+  entityType: string,
+  entityFQN: string,
+  feedCountCallback: (countValue: FeedCounts) => void
+) => {
+  try {
+    const res = await getFeedCount(getEntityFeedLink(entityType, entityFQN));
+    if (res) {
+      const {
+        conversationCount,
+        openTaskCount,
+        closedTaskCount,
+        totalTasksCount,
+        totalCount,
+        mentionCount,
+      } = res.reduce((acc, item) => {
+        const conversationCount =
+          acc.conversationCount + (item.conversationCount || 0);
+        const totalTasksCount =
+          acc.totalTasksCount + (item.totalTaskCount || 0);
+
+        return {
+          conversationCount,
+          totalTasksCount,
+          openTaskCount: acc.openTaskCount + (item.openTaskCount || 0),
+          closedTaskCount: acc.closedTaskCount + (item.closedTaskCount || 0),
+          totalCount: conversationCount + totalTasksCount,
+          mentionCount: acc.mentionCount + (item.mentionCount || 0),
+        };
+      }, FEED_COUNT_INITIAL_DATA);
+
+      feedCountCallback({
+        conversationCount,
+        totalTasksCount,
+        openTaskCount,
+        closedTaskCount,
+        totalCount,
+        mentionCount,
+      });
+    } else {
+      throw t('server.entity-feed-fetch-error');
+    }
+  } catch (err) {
+    showErrorToast(err as AxiosError, t('server.entity-feed-fetch-error'));
+  }
+};
+
+export const formatNumberWithComma = (number: number) => {
+  return new Intl.NumberFormat('en-US').format(number);
+};
+
+/**
+ * If the number is a time format, return the number, otherwise format the number with commas
+ * @param {number} number - The number to be formatted.
+ * @returns A function that takes a number and returns a string.
+ */
+export const getStatisticsDisplayValue = (
+  number: string | number | undefined
+) => {
+  const displayValue = toNumber(number);
+
+  if (isNaN(displayValue)) {
+    return number;
+  }
+
+  return formatNumberWithComma(displayValue);
+};
+
+export const digitFormatter = (value: number) => {
+  // convert 1000 to 1k
+  return Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+export const getTeamsUser = (
+  data: ExtraInfo,
+  currentUser: User
+): Record<string, string | undefined> | undefined => {
+  if (!isUndefined(data) && !isEmpty(data?.placeholderText || data?.id)) {
+    const teams = currentUser?.teams;
+
+    const dataFound = teams?.find((team) => {
+      return data.id === team.id;
+    });
+
+    if (dataFound) {
+      return {
+        ownerName: (currentUser?.displayName || currentUser?.name) as string,
+        id: currentUser?.id as string,
+      };
+    }
+  }
+
+  return;
+};
+
+export const getEmptyPlaceholder = () => {
+  return <ErrorPlaceHolder size={SIZE.MEDIUM} />;
+};
+
+//  return the status like loading and success
+export const getLoadingStatus = (
+  current: CurrentState,
+  id: string | undefined,
+  children: ReactNode
+) => {
+  if (current.id === id) {
+    return (
+      <div>
+        {/* Wrapping with div to apply spacing  */}
+        <Loader size="x-small" type="default" />
+      </div>
+    );
+  }
+
+  return children;
+};
+
+export const refreshPage = () => {
+  history.go(0);
+};
+
+export const getTagValue = (tag: string | TagLabel): string | TagLabel => {
+  if (isString(tag)) {
+    return tag.startsWith(`Tier${FQN_SEPARATOR_CHAR}`)
+      ? tag.split(FQN_SEPARATOR_CHAR)[1]
+      : tag;
+  } else {
+    return {
+      ...tag,
+      tagFQN: tag.tagFQN.startsWith(`Tier${FQN_SEPARATOR_CHAR}`)
+        ? tag.tagFQN.split(FQN_SEPARATOR_CHAR)[1]
+        : tag.tagFQN,
+    };
+  }
+};
+
+export const getTrimmedContent = (content: string, limit: number) => {
+  const lines = content.split('\n');
+  // Selecting the content in three lines
+  const contentInThreeLines = lines.slice(0, 3).join('\n');
+
+  const slicedContent = contentInThreeLines.slice(0, limit);
+
+  // Logic for eliminating any broken words at the end
+  // To avoid any URL being cut
+  const words = slicedContent.split(' ');
+  const wordsCount = words.length;
+
+  if (wordsCount === 1) {
+    // In case of only one word (possibly too long URL)
+    // return the whole word instead of trimming
+    return content.split(' ')[0];
+  }
+
+  // Eliminate word at the end to avoid using broken words
+  const refinedContent = words.slice(0, wordsCount - 1);
+
+  return refinedContent.join(' ');
+};
+
+export const Transi18next = ({
+  i18nKey,
+  values,
+  renderElement,
+  ...otherProps
+}: {
+  i18nKey: string;
+  values?: object;
+  renderElement: JSX.Element | HTMLElement;
+}): JSX.Element => (
+  <Trans i18nKey={i18nKey} values={values} {...otherProps}>
+    {renderElement}
+  </Trans>
+);
+
+export const getEntityDeleteMessage = (entity: string, dependents: string) => {
+  if (dependents) {
+    return t('message.permanently-delete-metadata-and-dependents', {
+      entityName: entity,
+      dependents,
+    });
+  } else {
+    return (
+      <Transi18next
+        i18nKey="message.permanently-delete-metadata"
+        renderElement={
+          <span className="font-medium" data-testid="entityName" />
+        }
+        values={{
+          entityName: entity,
+        }}
+      />
+    );
+  }
+};
+/**
+ * It takes a state and an action, and returns a new state with the action merged into it
+ * @param {S} state - S - The current state of the reducer.
+ * @param {A} action - A - The action that was dispatched.
+ * @returns An object with the state and action properties.
+ */
+export const reducerWithoutAction = <S, A>(state: S, action: A) => {
+  return {
+    ...state,
+    ...action,
+  };
+};
+
+/**
+ * @param text plain text
+ * @returns base64 encoded text
+ */
+export const getBase64EncodedString = (text: string): string => btoa(text);
+
+export const getIsErrorMatch = (error: AxiosError, key: string): boolean => {
+  let errorMessage = '';
+
+  if (error) {
+    errorMessage = get(error, 'response.data.message', '');
+    if (!errorMessage) {
+      // if error text is undefined or null or empty, try responseMessage in data
+      errorMessage = get(error, 'response.data.responseMessage', '');
+    }
+    if (!errorMessage) {
+      errorMessage = get(error, 'response.data', '');
+      errorMessage = typeof errorMessage === 'string' ? errorMessage : '';
+    }
+  }
+
+  return errorMessage.includes(key);
+};
+
+/**
+ * @param color hex have color code
+ * @param opacity take opacity how much to reduce it
+ * @returns hex color string
+ */
+export const reduceColorOpacity = (hex: string, opacity: number): string => {
+  hex = hex.replace(/^#/, ''); // Remove the "#" if it's there
+  hex = hex.length === 3 ? hex.replace(/./g, '$&$&') : hex; // Expand short hex to full hex format
+  const [red, green, blue] = [0, 2, 4].map((i) =>
+    parseInt(hex.slice(i, i + 2), 16)
+  ); // Parse hex values
+
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`; // Create RGBA color
+};
+
+/**
+ * @param searchValue search input
+ * @param option select options list
+ * @returns boolean
+ */
+export const handleSearchFilterOption = (
+  searchValue: string,
+  option?: {
+    label: string;
+    value: string;
+  }
+) => toLower(option?.label).includes(toLower(searchValue));
+// Check label while searching anything and filter that options out if found matching
+
+/**
+ * @param serviceType key for quick filter
+ * @returns json filter query string
+ */
+
+export const getServiceTypeExploreQueryFilter = (serviceType: string) => {
+  return JSON.stringify({
+    query: {
+      bool: {
+        must: [
+          {
+            bool: {
+              should: [
+                {
+                  term: {
+                    serviceType,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+};
+
+export const filterSelectOptions = (
+  input: string,
+  option?: DefaultOptionType
+) => {
+  return (
+    toLower(option?.labelValue).includes(toLower(input)) ||
+    toLower(isString(option?.value) ? option?.value : '').includes(
+      toLower(input)
+    )
+  );
+};
+
+/**
+ * helper method to check to determine the deleted flag is true or false
+ * some times deleted flag is string or boolean or undefined from the API
+ * for Example "false" or false or true in Lineage API
+ * @param deleted
+ * @returns
+ */
+export const isDeleted = (deleted: unknown): boolean => {
+  return (deleted as string) === 'false' || deleted === false || isNil(deleted)
+    ? false
+    : true;
+};
+
+export const removeOuterEscapes = (input: string) => {
+  // Use regex to check if the string starts and ends with escape characters
+  const match = input.match(VALIDATE_ESCAPE_START_END_REGEX);
+
+  // Return the middle part without the outer escape characters or the original input if no match
+  return match && match.length > 3 ? match[2] : input;
+};
+
+/**
+ * Generate a color with decreasing opacity after the first 24 colors.
+ * @param index - The index of the label
+ * @returns {string} - RGBA color string
+ */
+export const entityChartColor = (index: number): string => {
+  const baseColor = BASE_COLORS[index % BASE_COLORS.length]; // Cycle through base colors
+  const opacity =
+    index < BASE_COLORS.length
+      ? 1 // Full opacity for the first 24 labels
+      : Math.max(1 - Math.floor(index / BASE_COLORS.length) * 0.1, 0.1); // Decrease opacity for subsequent labels
+
+  return hexToRgba(baseColor, opacity);
+};
+
+/**
+ * Convert hex color to RGBA
+ * @param hex - Hex color string
+ * @param opacity - Opacity value (0-1)
+ * @returns {string} - RGBA color string
+ */
+const hexToRgba = (hex: string, opacity: number): string => {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+
+  return `rgba(${r}, ${g}, ${b}, ${opacity.toFixed(2)})`;
+};
+
+/**
+ * Provide the calculated percentage value from the number provided
+ * @param value - value on which percentage will be calculated
+ * @param percentageValue - PercentageValue like 20, 35 or 50
+ * @returns {number} - value derived after calculating percentage, like for 1000 on 10% = 100
+ */
+export const calculatePercentageFromValue = (
+  value: number,
+  percentageValue: number
+) => {
+  return (value * percentageValue) / 100;
+};

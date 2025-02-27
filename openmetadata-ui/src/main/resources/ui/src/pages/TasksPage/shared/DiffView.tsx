@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -15,6 +15,8 @@ import classNames from 'classnames';
 import { Change } from 'diff';
 import { uniqueId } from 'lodash';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { getTextFromHtmlString } from '../../../utils/BlockEditorUtils';
 
 export const DiffView = ({
   diffArr,
@@ -23,38 +25,43 @@ export const DiffView = ({
   diffArr: Change[];
   className?: string;
 }) => {
+  const { t } = useTranslation();
   const elements = diffArr.map((diff) => {
+    const diffValue = getTextFromHtmlString(diff.value);
     if (diff.added) {
       return (
-        <ins className="diff-added" key={uniqueId()}>
-          {diff.value}
+        <ins className="diff-added" data-testid="diff-added" key={uniqueId()}>
+          {diffValue}
         </ins>
       );
     }
     if (diff.removed) {
       return (
         <del
+          data-testid="diff-removed"
           key={uniqueId()}
           style={{ color: 'grey', textDecoration: 'line-through' }}>
-          {diff.value}
+          {diffValue}
         </del>
       );
     }
 
-    return <span key={uniqueId()}>{diff.value}</span>;
+    return (
+      <span data-testid="diff-normal" key={uniqueId()}>
+        {diffValue}
+      </span>
+    );
   });
 
   return (
-    <div
-      className={classNames(
-        'tw-w-full tw-max-h-52 tw-overflow-y-auto',
-        className
-      )}>
-      <pre className="tw-whitespace-pre-wrap tw-mb-0">
+    <div className={classNames('w-full h-max-56 overflow-y-auto', className)}>
+      <pre className="whitespace-pre-wrap m-b-0" data-testid="diff-container">
         {diffArr.length ? (
           elements
         ) : (
-          <span className="tw-text-grey-muted">No diff available</span>
+          <span className="text-grey-muted" data-testid="noDiff-placeholder">
+            {t('label.no-diff-available')}
+          </span>
         )}
       </pre>
     </div>

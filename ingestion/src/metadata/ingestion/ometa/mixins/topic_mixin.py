@@ -16,7 +16,7 @@ To be used by OpenMetadata class
 
 from metadata.generated.schema.entity.data.topic import Topic, TopicSampleData
 from metadata.ingestion.ometa.client import REST
-from metadata.ingestion.ometa.utils import ometa_logger
+from metadata.utils.logger import ometa_logger
 
 logger = ometa_logger()
 
@@ -40,7 +40,7 @@ class OMetaTopicMixin:
         :param sample_data: Data to add
         """
         resp = self.client.put(
-            f"{self.get_suffix(Topic)}/{topic.id.__root__}/sampleData",
-            data=sample_data.json(),
+            f"{self.get_suffix(Topic)}/{topic.id.root}/sampleData",
+            data=sample_data.model_dump_json(),
         )
         return TopicSampleData(**resp["sampleData"])

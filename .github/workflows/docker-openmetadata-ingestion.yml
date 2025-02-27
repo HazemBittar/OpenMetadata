@@ -13,54 +13,43 @@ name: docker-openmetadata-ingestion docker
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Input tag"
+      docker_release_tag:
+        description: "Ingestion Docker Image Tag (3 digit docker image tag)"
         required: true
-  release:
-    types: [published]
+      pypi_release_version:
+        description: "Provide the Release Version (4 digit docker image tag)"
+        required: true
+      push_latest_tag_to_release:
+        description: "Mark this as latest tag as well ?"
+        type: boolean
 
 jobs:
   push_to_docker_hub:
     runs-on: ubuntu-latest
-    env:
-      input: ${{ github.event.inputs.tag }}
-      
+
     steps:
-      - name: Check trigger type
-        if: ${{ env.input == '' }}
-        run: echo "input=0.10.4" >> $GITHUB_ENV
-        
       - name: Check out the Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1 
+      - name: Prepare for Docker Build&Push
+        id: prepare
+        uses: ./.github/actions/prepare-for-docker-build-and-push
         with:
-          username: ${{ secrets.DOCKERHUB_OPENMETADATA_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_OPENMETADATA_TOKEN }}
+          image: openmetadata/ingestion
+          tag: ${{ inputs.docker_release_tag }}
+          push_latest: ${{ inputs.push_latest_tag_to_release }}
+          is_ingestion: true
+          release_version: ${{ inputs.pypi_release_version }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_OPENMETADATA_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_OPENMETADATA_TOKEN }}
 
-      - name: Install Ubuntu dependencies
-        run: |
-          sudo apt-get install -y python3-venv antlr4
-
-      - name: Install open-metadata dependencies
-        run: |
-          python3 -m venv env
-          source env/bin/activate
-          make install_dev generate
-      
-      - name: Build and push
-        uses: docker/build-push-action@v2
+      - name: Build and push if event is workflow_dispatch and input is checked
+        env:
+          DOCKER_BUILD_NO_SUMMARY: true
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name == 'release' }}
-          # Update tags before every release
-          tags: 'openmetadata/ingestion:${{ env.input }},openmetadata/ingestion:latest'
+          push: true
+          tags: ${{ steps.prepare.outputs.tags }}
           file: ./ingestion/Dockerfile

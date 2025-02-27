@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,205 +11,281 @@
  *  limitations under the License.
  */
 
+import i18next from 'i18next';
 import React from 'react';
-import AppState from '../AppState';
+import { EntityTabs } from '../enums/entity.enum';
 import { CurrentTourPageType } from '../enums/tour.enum';
-import { getCurrentDatasetTab } from './DatasetDetailsUtils';
+import { Transi18next } from './CommonUtils';
 
-export const getSteps = (value: string, clearSearchTerm: () => void) => {
-  return [
-    {
-      content: () => (
-        <p>
-          Discover all your data assets in a single place with{' '}
-          <strong>OpenMetadata</strong>, a centralized metadata store.
-          Collaborate with your team and get a holistic picture of the data in
-          your organization.
-        </p>
-      ),
-      stepInteraction: false,
-      selector: '#assetStatsCount',
+interface ArgObject {
+  searchTerm: string;
+  updateTourPage: (value: CurrentTourPageType) => void;
+  updateActiveTab: (value: EntityTabs) => void;
+  clearSearchTerm: () => void;
+}
+
+export const getTourSteps = ({
+  searchTerm,
+  clearSearchTerm,
+  updateActiveTab,
+  updateTourPage,
+}: ArgObject) => [
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-activity-feed"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.activity-feed-plural'),
+          }}
+        />
+      </p>
+    ),
+    selector: '#feedData',
+    stepInteraction: false,
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-search-for-matching-dataset"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.search'),
+          }}
+        />
+      </p>
+    ),
+    selector: '#searchBox',
+    stepInteraction: false,
+    beforeNext: clearSearchTerm,
+  },
+  {
+    beforePrev: clearSearchTerm,
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-type-search-term"
+          renderElement={<strong />}
+          values={{
+            text: searchTerm,
+            enterText: i18next.t('label.enter'),
+          }}
+        />
+      </p>
+    ),
+    actionType: 'enter',
+    userTypeText: searchTerm,
+    selector: '#searchBox',
+    beforeNext: () => {
+      clearSearchTerm();
+      updateTourPage(CurrentTourPageType.EXPLORE_PAGE);
     },
-    {
-      content: () => (
-        <p>
-          <strong>Activity Feeds</strong> help you understand how the data is
-          changing in your organization.
-        </p>
-      ),
-      selector: '#feedData',
-      stepInteraction: false,
+  },
+  {
+    beforePrev: () => {
+      updateTourPage(CurrentTourPageType.MY_DATA_PAGE);
     },
-    {
-      content: () => (
-        <p>
-          Search for matching data assets by &quot;name&quot;,
-          &quot;description&quot;, &quot;column name&quot;, and so on from the{' '}
-          <strong>Search</strong> box.
-        </p>
-      ),
-      selector: '#searchBox',
-      stepInteraction: false,
-      beforeNext: clearSearchTerm,
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-explore-summary-asset"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.explore'),
+          }}
+        />
+      </p>
+    ),
+    selector: '#tabledatacard0',
+    stepInteraction: false,
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-click-on-link-to-view-more"
+          renderElement={<strong />}
+        />
+      </p>
+    ),
+    actionType: 'click',
+    selector: '[data-testid="sample_data.ecommerce_db.shopify.dim_address"]',
+    beforeNext: () => {
+      updateTourPage(CurrentTourPageType.DATASET_PAGE);
     },
-    {
-      beforePrev: clearSearchTerm,
-      content: () => (
-        <p>
-          In the search box, type <strong>&quot;{value}&quot;</strong>. Hit{' '}
-          <strong>Enter.</strong>
-        </p>
-      ),
-      actionType: 'enter',
-      userTypeText: value,
-      selector: '#searchBox',
-      beforeNext: () => {
-        clearSearchTerm();
-        AppState.currentTourPage = CurrentTourPageType.EXPLORE_PAGE;
-      },
+  },
+  {
+    beforePrev: () => {
+      updateTourPage(CurrentTourPageType.EXPLORE_PAGE);
     },
-    {
-      beforePrev: () => {
-        AppState.currentTourPage = CurrentTourPageType.MY_DATA_PAGE;
-      },
-      content: () => (
-        <p>
-          From the <strong>&quot;Explore&quot;</strong> page, view a summary of
-          each asset, including: title, description, owner, tier (importance),
-          usage, and location.
-        </p>
-      ),
-      selector: '#tabledatacard0',
-      stepInteraction: false,
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-high-level-assets-information-step"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.schema'),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: '[data-testid="entity-page-header"]',
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-owner-step"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.schema'),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: '[data-testid="owner-label"]',
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-follow-step"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.schema'),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: '[data-testid="entity-follow-button"]',
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-get-to-know-table-schema"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.schema'),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: '#schemaDetails',
+  },
+  {
+    beforePrev: () => {
+      updateActiveTab(EntityTabs.SCHEMA);
     },
-    {
-      content: () => (
-        <p>
-          Click on the <strong>title of the asset</strong> to view more details.
-        </p>
-      ),
-      actionType: 'click',
-      selector: '#tabledatacard0Title',
-      beforeNext: () => {
-        AppState.currentTourPage = CurrentTourPageType.DATASET_PAGE;
-      },
+    actionType: 'click',
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-click-on-entity-tab"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.sample-data'),
+          }}
+        />
+      </p>
+    ),
+    selector: `[data-testid="${EntityTabs.SAMPLE_DATA}"]`,
+    beforeNext: () => {
+      updateActiveTab(EntityTabs.SAMPLE_DATA);
     },
-    {
-      beforePrev: () => {
-        AppState.currentTourPage = CurrentTourPageType.EXPLORE_PAGE;
-      },
-      content: () => (
-        <p>
-          {' '}
-          Get to know the table <strong>Schema</strong>, including column names
-          and data types as well as column descriptions and tags. You can even
-          view metadata for complex types such as structs.
-        </p>
-      ),
-      stepInteraction: false,
-      selector: '#schemaDetails',
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-look-at-sample-data"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.sample-data'),
+          }}
+        />
+      </p>
+    ),
+    selector: '[data-testid="sample-data-table"]',
+  },
+  {
+    beforePrev: () => {
+      updateActiveTab(EntityTabs.SAMPLE_DATA);
     },
-    {
-      beforePrev: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('schema');
-      },
-      actionType: 'click',
-      content: () => (
-        <p>
-          Click on the <strong>&quot;Sample Data&quot;</strong> tab.
-        </p>
-      ),
-      selector: '#sampleData',
-      beforeNext: () => {
-        AppState.activeTabforTourDatasetPage =
-          getCurrentDatasetTab('sample_data');
-      },
+    beforeNext: () => {
+      updateActiveTab(EntityTabs.PROFILER);
     },
-    {
-      content: () => (
-        <p>
-          Take a look at the <strong>Sample Data</strong> to get a feel for what
-          the table contains and how you might use it.
-        </p>
-      ),
-      selector: '#sampleDataDetails',
+    actionType: 'click',
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-click-on-entity-tab"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.profiler'),
+          }}
+        />
+      </p>
+    ),
+    selector: `[data-testid="${EntityTabs.PROFILER}"]`,
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-discover-data-assets-with-data-profile"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.data-entity', {
+              entity: i18next.t('label.profiler'),
+            }),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: '#profilerDetails',
+  },
+  {
+    beforePrev: () => {
+      updateActiveTab(EntityTabs.PROFILER);
     },
-    {
-      beforePrev: () => {
-        AppState.activeTabforTourDatasetPage =
-          getCurrentDatasetTab('sample_data');
-      },
-      beforeNext: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('profiler');
-      },
-      actionType: 'click',
-      content: () => (
-        <p>
-          Click on the <strong>&quot;Profiler&quot;</strong> tab.
-        </p>
-      ),
-      selector: '#profiler',
+    beforeNext: () => {
+      updateActiveTab(EntityTabs.LINEAGE);
     },
-    {
-      content: () => (
-        <p>
-          Discover assets with the <strong>Data Profiler</strong>. Get to know
-          the table usage stats, check for null values and duplicates, and
-          understand the column data distributions.
-        </p>
-      ),
-      stepInteraction: false,
-      selector: '#profilerDetails',
-    },
-    {
-      beforePrev: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('profiler');
-      },
-      beforeNext: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('lineage');
-      },
-      actionType: 'click',
-      content: () => (
-        <p>
-          Click on the <strong>&quot;Lineage&quot;</strong> tab
-        </p>
-      ),
-      selector: '#lineage',
-    },
-    {
-      content: () => (
-        <p>
-          With <strong>Lineage</strong>, trace the path of data across tables,
-          pipelines, & dashboards.
-        </p>
-      ),
-      stepInteraction: false,
-      selector: '#lineageDetails',
-    },
-    {
-      beforeNext: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('manage');
-      },
-      actionType: 'click',
-      content: () => (
-        <p>
-          Click on the <strong>&quot;Manage&quot;</strong> tab
-        </p>
-      ),
-      selector: '#manage',
-    },
-    {
-      beforePrev: () => {
-        AppState.activeTabforTourDatasetPage = getCurrentDatasetTab('lineage');
-      },
-      content: () => (
-        <p>
-          From <strong>&quot;Manage&quot;</strong>, you can claim ownership, and
-          set the tier.
-        </p>
-      ),
-      stepInteraction: false,
-      selector: '#manageTabDetails',
-    },
-  ];
-};
+    actionType: 'click',
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-click-on-entity-tab"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.lineage'),
+          }}
+        />
+      </p>
+    ),
+    selector: `[data-testid="${EntityTabs.LINEAGE}"]`,
+  },
+  {
+    content: () => (
+      <p>
+        <Transi18next
+          i18nKey="message.tour-step-trace-path-across-tables"
+          renderElement={<strong />}
+          values={{
+            text: i18next.t('label.lineage'),
+          }}
+        />
+      </p>
+    ),
+    stepInteraction: false,
+    selector: `[data-testid="lineage-details"]`,
+  },
+];

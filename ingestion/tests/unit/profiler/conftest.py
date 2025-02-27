@@ -10,10 +10,9 @@
 #  limitations under the License.
 
 """
-Confest for profiler tests
+Conftest for profiler tests
 """
 
-from unittest.mock import patch
 from uuid import UUID
 
 from pytest import fixture
@@ -23,10 +22,7 @@ from metadata.generated.schema.entity.data.table import Column, DataType, Table
 from metadata.generated.schema.entity.services.connections.metadata.openMetadataConnection import (
     OpenMetadataConnection,
 )
-from metadata.orm_profiler.api.models import ProfilerProcessorConfig
-from metadata.orm_profiler.processor.orm_profiler import OrmProfilerProcessor
-from metadata.orm_profiler.validations.models import TestDef, TestSuite
-from metadata.utils.connections import create_and_bind_session
+from metadata.ingestion.connections.session import create_and_bind_session
 
 
 def metadata_connection_object():
@@ -40,17 +36,6 @@ def session():
     yield session
 
     session.close()
-
-
-def base_profiler_processor_config():
-    return ProfilerProcessorConfig(
-        test_suite=TestSuite(
-            name="test suite",
-            tests=[
-                TestDef(table="my.awesome.table"),
-            ],
-        )
-    )
 
 
 @fixture
@@ -72,14 +57,43 @@ def base_table():
     )
 
 
-@fixture
-@patch(
-    "metadata.orm_profiler.processor.orm_profiler.OpenMetadata",
-    autospec=True,
-)
-def base_orm_profiler_processor(mocked_metadata_config_object):
-    return OrmProfilerProcessor(
-        base_profiler_processor_config(),
-        metadata_connection_object(),
-        session(),
-    )
+class Row:
+    def __init__(
+        self,
+        query_id,
+        query_type,
+        start_time,
+        query_text,
+    ):
+        self.QUERY_ID = query_id
+        self.QUERY_TYPE = query_type
+        self.START_TIME = start_time
+        self.QUERY_TEXT = query_text
+
+    def __iter__(self):
+        """implementation to support dict(row)"""
+        yield "QUERY_ID", self.QUERY_ID
+        yield "QUERY_TYPE", self.QUERY_TYPE
+        yield "START_TIME", self.START_TIME
+        yield "QUERY_TEXT", self.QUERY_TEXT
+
+
+class LowerRow:
+    def __init__(
+        self,
+        query_id,
+        query_type,
+        start_time,
+        query_text,
+    ):
+        self.QUERY_ID = query_id
+        self.QUERY_TYPE = query_type
+        self.START_TIME = start_time
+        self.QUERY_TEXT = query_text
+
+    def __iter__(self):
+        """implementation to support dict(row)"""
+        yield "query_id", self.QUERY_ID
+        yield "query_type", self.QUERY_TYPE
+        yield "start_time", self.START_TIME
+        yield "query_text", self.QUERY_TEXT

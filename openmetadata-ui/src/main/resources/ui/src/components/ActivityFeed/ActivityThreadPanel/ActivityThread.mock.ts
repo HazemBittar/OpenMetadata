@@ -1,3 +1,21 @@
+/*
+ *  Copyright 2022 Collate.
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+import {
+  TaskType,
+  ThreadTaskStatus,
+} from '../../../generated/entity/feed/thread';
+
 export const mockThreadData = [
   {
     id: '465b2dfb-300e-45f5-a1a6-e19c6225e9e7',
@@ -13,6 +31,32 @@ export const mockThreadData = [
     postsCount: 0,
     posts: [],
     relativeDay: 'Today',
+    task: {
+      id: 153,
+      type: TaskType.RequestTag,
+      assignees: [
+        {
+          id: 'ef1b9e8a-75ba-4c12-9874-034c135be925',
+          type: 'team',
+          name: 'Sales',
+          fullyQualifiedName: 'Sales',
+          displayName: 'Sales',
+          deleted: false,
+        },
+        {
+          id: '83bd6004-9237-47a1-b917-ef006b3192d7',
+          type: 'user',
+          name: 'aaron_johnson0',
+          fullyQualifiedName: 'aaron_johnson0',
+          displayName: 'Aaron Johnson',
+          deleted: false,
+        },
+      ],
+      status: ThreadTaskStatus.Open,
+      oldValue: '[]',
+      suggestion:
+        '[{"tagFQN":"PII.None","source":"Classification","name":"None","description":"Non PII"}]',
+    },
   },
   {
     id: '40c2faec-0159-4d86-9b15-c17f3e1c081b',

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,7 +11,50 @@
  *  limitations under the License.
  */
 
-export enum ADMIN_ONLY_ACCESSIBLE_SECTION {
-  TEAM = 'team',
-  SERVICE = 'service',
+export enum SIZE {
+  X_SMALL = '40',
+  SMALL = '60',
+  MEDIUM = '86',
+  LARGE = '126',
+}
+
+export enum ACTION_TYPE {
+  UPDATE = 'update',
+  REMOVE = 'remove',
+}
+
+export enum LOADING_STATE {
+  INITIAL = 'initial',
+  WAITING = 'waiting',
+  SUCCESS = 'success',
+}
+
+export enum PROMISE_STATE {
+  FULFILLED = 'fulfilled',
+  REJECTED = 'rejected',
+}
+
+export enum OPERATION {
+  UPDATE = 'update',
+  DELETE = 'delete',
+  NO_OPERATION = 'no-operation',
+}
+
+export enum SORT_ORDER {
+  ASC = 'asc',
+  DESC = 'desc',
+}
+
+export enum ERROR_PLACEHOLDER_TYPE {
+  CREATE = 'CREATE',
+  ASSIGN = 'ASSIGN',
+  FILTER = 'FILTER',
+  CUSTOM = 'CUSTOM',
+  PERMISSION = 'PERMISSION',
+  NO_DATA = 'NO_DATA',
+}
+
+export enum ELASTICSEARCH_ERROR_PLACEHOLDER_TYPE {
+  NO_DATA = 'NO_DATA',
+  ERROR = 'ERROR',
 }

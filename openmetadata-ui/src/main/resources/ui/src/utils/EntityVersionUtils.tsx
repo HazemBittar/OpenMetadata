@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,112 +11,96 @@
  *  limitations under the License.
  */
 
-import classNames from 'classnames';
-import { ArrayChange, diffArrays, diffWordsWithSpace } from 'diff';
-import { isEmpty, isUndefined, uniqueId } from 'lodash';
-import React, { Fragment } from 'react';
-import ReactDOMServer from 'react-dom/server';
-// Markdown Parser and plugin imports
-import MarkdownParser from 'react-markdown';
-import { Link } from 'react-router-dom';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
-import { FQN_SEPARATOR_CHAR } from '../constants/char.constants';
+import { Typography } from 'antd';
 import {
-  DESCRIPTIONLENGTH,
-  getTeamAndUserDetailsPath,
-} from '../constants/constants';
-import { EntityField } from '../constants/feed.constants';
-import { ChangeType } from '../enums/entity.enum';
-import { Column } from '../generated/entity/data/table';
+  ArrayChange,
+  Change,
+  diffArrays,
+  diffWords,
+  diffWordsWithSpace,
+} from 'diff';
+import { t } from 'i18next';
+import {
+  cloneDeep,
+  get,
+  isEmpty,
+  isEqual,
+  isObject,
+  isUndefined,
+  toString,
+  uniqBy,
+  uniqueId,
+} from 'lodash';
+import React, { Fragment, ReactNode } from 'react';
+import ReactDOMServer from 'react-dom/server';
+import {
+  ExtentionEntities,
+  ExtentionEntitiesKeys,
+} from '../components/common/CustomPropertyTable/CustomPropertyTable.interface';
+import { OwnerLabel } from '../components/common/OwnerLabel/OwnerLabel.component';
+import { VersionButton } from '../components/Entity/EntityVersionTimeLine/EntityVersionTimeLine';
+import { FQN_SEPARATOR_CHAR } from '../constants/char.constants';
+import { NO_DATA_PLACEHOLDER } from '../constants/constants';
+import { EntityField } from '../constants/Feeds.constants';
+import { EntityType, TabSpecificField } from '../enums/entity.enum';
+import { EntityChangeOperations } from '../enums/VersionPage.enum';
+import { Column as ContainerColumn } from '../generated/entity/data/container';
+import { Column as DataModelColumn } from '../generated/entity/data/dashboardDataModel';
+import { Column as TableColumn } from '../generated/entity/data/table';
+import { Field } from '../generated/entity/data/topic';
 import {
   ChangeDescription,
   FieldChange,
 } from '../generated/entity/services/databaseService';
+import { MetadataService } from '../generated/entity/services/metadataService';
+import { EntityReference } from '../generated/entity/type';
 import { TagLabel } from '../generated/type/tagLabel';
-import { getEntityName } from './CommonUtils';
-import { TagLabelWithStatus } from './EntityVersionUtils.interface';
-import { isValidJSONString } from './StringsUtils';
-import { getEntityLink } from './TableUtils';
+import {
+  EntityDiffProps,
+  EntityDiffWithMultiChanges,
+} from '../interface/EntityVersion.interface';
+import { getEntityBreadcrumbs, getEntityName } from './EntityUtils';
+import {
+  AssetsChildForVersionPages,
+  TagLabelWithStatus,
+  VersionEntityTypes,
+} from './EntityVersionUtils.interface';
+import { getJSONFromString, isValidJSONString } from './StringsUtils';
+import { getTagsWithoutTier, getTierTags } from './TableUtils';
 
-/* eslint-disable */
-const parseMarkdown = (
-  content: string,
-  className: string,
-  _isNewLine: boolean
-) => {
-  return (
-    <Fragment>
-      <MarkdownParser
-        sourcePos
-        components={{
-          h1: 'p',
-          h2: 'p',
-          ul: ({ children, ...props }) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { ordered, ...rest } = props;
+export const getChangedEntityName = (diffObject?: EntityDiffProps) =>
+  diffObject?.added?.name ??
+  diffObject?.deleted?.name ??
+  diffObject?.updated?.name;
 
-            return (
-              <ul className={classNames('tw-ml-3', className)} {...rest}>
-                {children}
-              </ul>
-            );
-          },
-          ol: ({ children, ...props }) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { ordered, ...rest } = props;
+export const getChangedEntityOldValue = (diffObject?: EntityDiffProps) =>
+  diffObject?.added?.oldValue ??
+  diffObject?.deleted?.oldValue ??
+  diffObject?.updated?.oldValue;
 
-            return (
-              <ol className="tw-ml-3" {...rest} style={{ listStyle: 'auto' }}>
-                {children}
-              </ol>
-            );
-          },
-          code: ({ children, ...props }) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { inline, ...rest } = props;
+export const getChangedEntityNewValue = (diffObject?: EntityDiffProps) =>
+  diffObject?.added?.newValue ??
+  diffObject?.deleted?.newValue ??
+  diffObject?.updated?.newValue;
 
-            return (
-              <code {...rest} className="tw-my">
-                {children}
-              </code>
-            );
-          },
-          p: ({ children, ...props }) => {
-            return (
-              <p className={className} {...props}>
-                {children}
-              </p>
-            );
-          },
-          span: ({ children, ...props }) => {
-            return (
-              <span className={className} {...props}>
-                {children}
-              </span>
-            );
-          },
-        }}
-        rehypePlugins={[rehypeRaw]}
-        remarkPlugins={[remarkGfm]}>
-        {content}
-      </MarkdownParser>
-    </Fragment>
-  );
+export const getChangeColumnNameFromDiffValue = (name?: string) => {
+  const nameWithoutInternalQuotes = name?.replaceAll(/"/g, '');
+
+  return nameWithoutInternalQuotes?.split(FQN_SEPARATOR_CHAR)?.slice(-2, -1)[0];
+};
+
+export const isEndsWithField = (checkWith: string, name?: string) => {
+  return name?.endsWith(checkWith);
 };
 
 export const getDiffByFieldName = (
   name: string,
   changeDescription: ChangeDescription,
   exactMatch?: boolean
-): {
-  added: FieldChange | undefined;
-  deleted: FieldChange | undefined;
-  updated: FieldChange | undefined;
-} => {
-  const fieldsAdded = changeDescription?.fieldsAdded || [];
-  const fieldsDeleted = changeDescription?.fieldsDeleted || [];
-  const fieldsUpdated = changeDescription?.fieldsUpdated || [];
+): EntityDiffProps => {
+  const fieldsAdded = changeDescription?.fieldsAdded ?? [];
+  const fieldsDeleted = changeDescription?.fieldsDeleted ?? [];
+  const fieldsUpdated = changeDescription?.fieldsUpdated ?? [];
   if (exactMatch) {
     return {
       added: fieldsAdded.find((ch) => ch.name === name),
@@ -125,9 +109,9 @@ export const getDiffByFieldName = (
     };
   } else {
     return {
-      added: fieldsAdded.find((ch) => ch.name?.startsWith(name)),
-      deleted: fieldsDeleted.find((ch) => ch.name?.startsWith(name)),
-      updated: fieldsUpdated.find((ch) => ch.name?.startsWith(name)),
+      added: fieldsAdded.find((ch) => ch.name?.includes(name)),
+      deleted: fieldsDeleted.find((ch) => ch.name?.includes(name)),
+      updated: fieldsUpdated.find((ch) => ch.name?.includes(name)),
     };
   }
 };
@@ -135,49 +119,135 @@ export const getDiffByFieldName = (
 export const getDiffValue = (oldValue: string, newValue: string) => {
   const diff = diffWordsWithSpace(oldValue, newValue);
 
-  return diff.map((part: any, index: any) => {
+  return diff.map((part: Change) => {
+    const diffChangeText = part.added ? 'diff-added' : 'diff-removed';
+
     return (
       <span
-        className={classNames(
-          { 'diff-added': part.added },
-          { 'diff-removed': part.removed }
-        )}
-        key={index}>
+        className={diffChangeText}
+        data-testid={`${diffChangeText}`}
+        key={part.value}>
         {part.value}
       </span>
     );
   });
 };
 
-export const getDescriptionDiff = (
-  oldDescription: string | undefined,
-  newDescription: string | undefined,
-  latestDescription: string | undefined
+export const getAddedDiffElement = (text: string) => {
+  return (
+    <span
+      className="diff-added text-underline"
+      data-diff="true"
+      data-testid="diff-added"
+      key={uniqueId()}>
+      {text}
+    </span>
+  );
+};
+
+export const getRemovedDiffElement = (text: string) => {
+  return (
+    <span
+      className="text-grey-muted text-line-through"
+      data-diff="true"
+      data-testid="diff-removed"
+      key={uniqueId()}>
+      {text}
+    </span>
+  );
+};
+
+export const getNormalDiffElement = (text: string) => {
+  return (
+    <span data-diff="true" data-testid="diff-normal" key={uniqueId()}>
+      {text}
+    </span>
+  );
+};
+
+export const getTextDiff = (
+  oldText: string,
+  newText: string,
+  latestText?: string
 ) => {
-  if (!isUndefined(newDescription) || !isUndefined(oldDescription)) {
-    const diff = diffWordsWithSpace(oldDescription ?? '', newDescription ?? '');
+  const imagePlaceholder = 'data:image';
+  if (isEmpty(oldText) && isEmpty(newText)) {
+    return latestText ?? '';
+  }
 
-    const result: Array<string> = diff.map((part: any, index: any) => {
-      const classes = classNames(
-        { 'diff-added': part.added },
-        { 'diff-removed': part.removed }
-      );
+  if (
+    newText?.includes(imagePlaceholder) ||
+    oldText?.includes(imagePlaceholder)
+  ) {
+    return newText;
+  }
 
-      return ReactDOMServer.renderToString(
-        <span key={index}>
-          {parseMarkdown(
-            part.value,
-            classes,
-            part.value?.startsWith('\n\n') || part.value?.includes('\n\n')
-          )}
-        </span>
-      );
+  const diffArr = diffWords(toString(oldText), toString(newText));
+
+  const result = diffArr.map((diff) => {
+    if (diff.added) {
+      return ReactDOMServer.renderToString(getAddedDiffElement(diff.value));
+    }
+    if (diff.removed) {
+      return ReactDOMServer.renderToString(getRemovedDiffElement(diff.value));
+    }
+
+    return ReactDOMServer.renderToString(getNormalDiffElement(diff.value));
+  });
+
+  return result.join('');
+};
+
+const getCustomPropertyValue = (value: unknown) => {
+  if (isObject(value)) {
+    return JSON.stringify(value);
+  }
+
+  return toString(value);
+};
+
+export const getTextDiffCustomProperty = (
+  fieldName: string,
+  oldText: string,
+  newText: string
+) => {
+  if (oldText && newText) {
+    return `* ${t('message.custom-property-is-set-to-message', {
+      fieldName,
+    })} **${getTextDiff(oldText, newText)}**`;
+  }
+
+  const resultArray: unknown = getJSONFromString(oldText || newText);
+
+  if (Array.isArray(resultArray)) {
+    const result = resultArray.map((diff: Record<string, string>) => {
+      const objKeys = Object.keys(diff);
+
+      return `* ${t('message.custom-property-is-set-to-message', {
+        fieldName: objKeys[0],
+      })} **${getCustomPropertyValue(diff[objKeys[0]])}** \n`;
     });
 
     return result.join('');
-  } else {
-    return latestDescription || '';
   }
+
+  return '';
+};
+
+export const getEntityVersionByField = (
+  changeDescription: ChangeDescription,
+  field: string,
+  fallbackText?: string
+) => {
+  const fieldDiff = getDiffByFieldName(field, changeDescription, true);
+  const oldField = getChangedEntityOldValue(fieldDiff);
+  const newField = getChangedEntityNewValue(fieldDiff);
+
+  return getTextDiff(
+    toString(oldField) ?? '',
+    toString(newField),
+    toString(fallbackText)
+  );
 };
 
 export const getTagsDiff = (
@@ -187,7 +257,7 @@ export const getTagsDiff = (
   const tagDiff = diffArrays<TagLabel, TagLabel>(oldTagList, newTagList);
   const result = tagDiff
     .map((part: ArrayChange<TagLabel>) =>
-      (part.value as Array<TagLabel>).map((tag) => ({
+      part.value.map((tag) => ({
         ...tag,
         added: part.added,
         removed: part.removed,
@@ -198,339 +268,54 @@ export const getTagsDiff = (
   return result;
 };
 
-export const getPreposition = (type: ChangeType) => {
-  switch (type) {
-    case 'Added':
-      return 'to';
-
-    case 'Removed':
-      return 'from';
-
-    case 'Updated':
-      return 'of';
-
-    default:
-      return '';
-  }
-};
-
-const getColumnName = (column: string) => {
-  const name = column.split(FQN_SEPARATOR_CHAR);
-  const length = name.length;
-  return name
-    .slice(length > 1 ? 1 : 0, length > 1 ? length - 1 : length)
-    .join(FQN_SEPARATOR_CHAR);
-};
-
-const getLinkWithColumn = (column: string, eFqn: string, eType: string) => {
-  return (
-    <Link
-      className="tw-pl-1"
-      to={`${getEntityLink(eType, eFqn)}.${getColumnName(column)}`}>
-      {getColumnName(column)}
-    </Link>
-  );
-};
-
-const getDescriptionText = (value: string) => {
-  const length = value.length;
-  return `${value.slice(0, DESCRIPTIONLENGTH)}${
-    length > DESCRIPTIONLENGTH ? '...' : ''
-  }`;
-};
-
-const getDescriptionElement = (fieldChange: FieldChange) => {
-  return fieldChange?.newValue && fieldChange?.oldValue ? (
-    <Fragment>
-      &nbsp;
-      <span className="tw-italic feed-change-description">{`${getDescriptionText(
-        fieldChange?.newValue
-      )}`}</span>
-    </Fragment>
-  ) : fieldChange?.newValue ? (
-    <Fragment>
-      &nbsp;
-      <span className="tw-italic feed-change-description">
-        {`${getDescriptionText(fieldChange?.newValue)}`}
-      </span>
-    </Fragment>
-  ) : (
-    <Fragment>
-      &nbsp;
-      <span className="tw-italic feed-change-description">
-        {`${getDescriptionText(fieldChange?.oldValue)}`}
-      </span>
-    </Fragment>
-  );
-};
-
-export const feedSummaryFromatter = (
-  fieldChange: FieldChange,
-  type: ChangeType,
-  _entityName: string,
-  entityType: string,
-  entityFQN: string
+export const getEntityVersionTags = (
+  currentVersionData: VersionEntityTypes,
+  changeDescription: ChangeDescription
 ) => {
-  const value = JSON.parse(
-    isValidJSONString(fieldChange?.newValue)
-      ? fieldChange?.newValue
-      : isValidJSONString(fieldChange?.oldValue)
-      ? fieldChange?.oldValue
-      : '{}'
+  const tagsDiff = getDiffByFieldName('tags', changeDescription, true);
+  const oldTags: Array<TagLabel> = JSON.parse(
+    getChangedEntityOldValue(tagsDiff) ?? '[]'
   );
-  const oldValue = JSON.parse(
-    isValidJSONString(fieldChange?.oldValue) ? fieldChange?.oldValue : '{}'
+  const newTags: Array<TagLabel> = JSON.parse(
+    getChangedEntityNewValue(tagsDiff) ?? '[]'
   );
-  const newValue = JSON.parse(
-    isValidJSONString(fieldChange?.newValue) ? fieldChange?.newValue : '{}'
-  );
-  let summary: JSX.Element;
-  switch (true) {
-    case fieldChange?.name?.startsWith('column'): {
-      if (fieldChange?.name?.endsWith('tags')) {
-        summary = (
-          <p key={uniqueId()}>
-            {`${type} tags ${value
-              ?.map((val: any) => val?.tagFQN)
-              ?.join(', ')} ${getPreposition(type)} column`}
-            {getLinkWithColumn(
-              fieldChange?.name as string,
-              entityFQN,
-              entityType
-            )}
-          </p>
-        );
+  const flag: { [x: string]: boolean } = {};
+  const uniqueTags: Array<TagLabelWithStatus> = [];
 
-        break;
-      } else if (fieldChange?.name?.endsWith(EntityField.DESCRIPTION)) {
-        summary = (
-          <p key={uniqueId()}>
-            {`${
-              fieldChange?.newValue && fieldChange?.oldValue
-                ? type
-                : fieldChange?.newValue
-                ? 'Added'
-                : 'Removed'
-            } column description for`}
-            {getLinkWithColumn(
-              fieldChange?.name as string,
-              entityFQN,
-              entityType
-            )}
-            {isEmpty(value) ? getDescriptionElement(fieldChange) : ''}
-          </p>
-        );
-
-        break;
-      } else if (fieldChange?.name === EntityField.COLUMNS) {
-        const length = value?.length ?? 0;
-        summary = (
-          <p key={uniqueId()}>
-            {`${type} ${fieldChange?.name}`}{' '}
-            {value?.map((column: Column, i: number) => (
-              <span key={uniqueId()}>
-                {getLinkWithColumn(column.name, entityFQN, entityType)}{' '}
-                {i !== length - 1 ? ', ' : ''}
-              </span>
-            ))}
-          </p>
-        );
-
-        break;
-      } else {
-        summary = (
-          <p key={uniqueId()}>
-            {`${type}`}
-            {getLinkWithColumn(
-              fieldChange?.name as string,
-              entityFQN,
-              entityType
-            )}
-          </p>
-        );
-
-        break;
-      }
+  [
+    ...(getTagsDiff(oldTags, newTags) ?? []),
+    ...(currentVersionData.tags ?? []),
+  ].forEach((elem) => {
+    if (!flag[elem.tagFQN]) {
+      flag[elem.tagFQN] = true;
+      uniqueTags.push(elem as TagLabelWithStatus);
     }
+  });
 
-    case fieldChange?.name === 'tags': {
-      const tier = value?.find((t: any) => t?.tagFQN?.startsWith('Tier'));
-      const tags = value?.filter((t: any) => !t?.tagFQN?.startsWith('Tier'));
-      summary = (
-        <div>
-          {tags?.length > 0 ? (
-            <p key={uniqueId()}>{`${type} tags ${tags
-              ?.map((val: any) => val?.tagFQN)
-              ?.join(', ')}`}</p>
-          ) : null}
-          {tier ? (
-            <p key={uniqueId()}>{`${type} tier ${
-              tier?.tagFQN?.split(FQN_SEPARATOR_CHAR)[1]
-            }`}</p>
-          ) : null}
-        </div>
-      );
-
-      break;
-    }
-
-    case fieldChange?.name === 'owner': {
-      const ownerName = getEntityName(newValue) || getEntityName(value);
-      const ownerText =
-        !isEmpty(oldValue) && !isEmpty(newValue) ? (
-          <Fragment>
-            {newValue?.type === 'team' ? (
-              <Link
-                className="tw-pl-1"
-                to={getTeamAndUserDetailsPath(newValue?.name || '')}>
-                <span title={ownerName}>{ownerName}</span>
-              </Link>
-            ) : (
-              <span className="tw-pl-1" title={ownerName}>
-                {ownerName}
-              </span>
-            )}
-          </Fragment>
-        ) : (
-          <Fragment>
-            {value?.type === 'team' ? (
-              <Link
-                className="tw-pl-1"
-                to={getTeamAndUserDetailsPath(value?.name || '')}>
-                <span title={ownerName}>{ownerName}</span>
-              </Link>
-            ) : (
-              <span className="tw-pl-1" title={ownerName}>
-                {ownerName}
-              </span>
-            )}
-          </Fragment>
-        );
-      summary = (
-        <p
-          className={classNames('tw-truncate', {
-            'tw-w-52': ownerName.length > 32,
-          })}
-          key={uniqueId()}>
-          {`Assigned ownership to`}
-          {ownerText}
-        </p>
-      );
-
-      break;
-    }
-
-    case fieldChange?.name === EntityField.DESCRIPTION: {
-      summary = (
-        <p key={uniqueId()}>
-          {`${
-            fieldChange?.newValue && fieldChange?.oldValue
-              ? type
-              : fieldChange?.newValue
-              ? 'Added'
-              : 'Removed'
-          } description`}
-          {getDescriptionElement(fieldChange)}
-        </p>
-      );
-
-      break;
-    }
-
-    case fieldChange?.name === 'followers': {
-      summary = (
-        <p key={uniqueId()}>{`${
-          fieldChange?.newValue ? 'Started following' : 'Unfollowed'
-        } ${_entityName}`}</p>
-      );
-
-      break;
-    }
-
-    default:
-      summary = <p key={uniqueId()}>{`${type} ${fieldChange?.name}`}</p>;
-
-      break;
-  }
-  return summary;
-};
-
-export const getFeedSummary = (
-  changeDescription: ChangeDescription,
-  entityName: string,
-  entityType: string,
-  entityFQN: string
-) => {
-  const fieldsAdded = [...(changeDescription?.fieldsAdded || [])];
-  const fieldsDeleted = [...(changeDescription?.fieldsDeleted || [])];
-  const fieldsUpdated = [...(changeDescription?.fieldsUpdated || [])];
-
-  return (
-    <Fragment>
-      {fieldsDeleted?.length ? (
-        <div className="tw-mb-2">
-          {fieldsDeleted?.map((d) => (
-            <Fragment key={uniqueId()}>
-              {feedSummaryFromatter(
-                d,
-                ChangeType.REMOVED,
-                entityName,
-                entityType,
-                entityFQN
-              )}
-            </Fragment>
-          ))}
-        </div>
-      ) : null}
-      {fieldsAdded?.length > 0 ? (
-        <div className="tw-mb-2">
-          {fieldsAdded?.map((a) => (
-            <Fragment key={uniqueId()}>
-              {feedSummaryFromatter(
-                a,
-                ChangeType.ADDED,
-                entityName,
-                entityType,
-                entityFQN
-              )}
-            </Fragment>
-          ))}
-        </div>
-      ) : null}
-      {fieldsUpdated?.length ? (
-        <div className="tw-mb-2">
-          {fieldsUpdated?.map((u) => (
-            <Fragment key={uniqueId()}>
-              {feedSummaryFromatter(
-                u,
-                ChangeType.UPDATED,
-                entityName,
-                entityType,
-                entityFQN
-              )}
-            </Fragment>
-          ))}
-        </div>
-      ) : null}
-    </Fragment>
-  );
+  return getTagsWithoutTier(uniqueTags);
 };
 
 export const summaryFormatter = (fieldChange: FieldChange) => {
-  const value = JSON.parse(
-    isValidJSONString(fieldChange?.newValue)
-      ? fieldChange?.newValue
-      : isValidJSONString(fieldChange?.oldValue)
-      ? fieldChange?.oldValue
-      : '{}'
-  );
+  const newValueJSON = isValidJSONString(fieldChange?.newValue)
+    ? JSON.parse(fieldChange?.newValue)
+    : undefined;
+  const oldValueJSON = isValidJSONString(fieldChange?.oldValue)
+    ? JSON.parse(fieldChange?.oldValue)
+    : {};
+
+  const value = newValueJSON ?? oldValueJSON;
+
   if (fieldChange.name === EntityField.COLUMNS) {
-    return `columns ${value?.map((val: any) => val?.name).join(', ')}`;
+    return `${t('label.column-lowercase-plural')} ${value
+      ?.map((val: TableColumn) => val?.name)
+      .join(', ')}`;
   } else if (
     fieldChange.name === 'tags' ||
     fieldChange.name?.endsWith('tags')
   ) {
-    return `tags ${value?.map((val: any) => val?.tagFQN)?.join(', ')}`;
+    return `${t('label.tag-lowercase-plural')} ${value
+      ?.map((val: TagLabel) => val?.tagFQN)
+      ?.join(', ')}`;
   } else if (fieldChange.name === 'owner') {
     return `${fieldChange.name} ${value.name}`;
   } else {
@@ -538,56 +323,136 @@ export const summaryFormatter = (fieldChange: FieldChange) => {
   }
 };
 
-export const getSummary = (
-  changeDescription: ChangeDescription,
-  isPrefix = false
-) => {
-  const fieldsAdded = [...(changeDescription?.fieldsAdded || [])];
-  const fieldsDeleted = [...(changeDescription?.fieldsDeleted || [])];
+const getGlossaryTermApprovalText = (fieldsChanged: FieldChange[]) => {
+  const statusFieldDiff = fieldsChanged.find(
+    (field) => field.name === 'status'
+  );
+  let approvalText = '';
+
+  if (statusFieldDiff) {
+    approvalText = t('message.glossary-term-status', {
+      status:
+        statusFieldDiff.newValue === 'Approved'
+          ? t('label.approved')
+          : t('label.rejected'),
+    });
+  }
+
+  return approvalText;
+};
+
+const getSummaryText = ({
+  isPrefix,
+  fieldsChanged,
+  actionType,
+  actionText,
+  isGlossaryTerm,
+}: {
+  isPrefix: boolean;
+  fieldsChanged: FieldChange[];
+  actionType: string;
+  actionText: string;
+  isGlossaryTerm?: boolean;
+}) => {
+  const prefix = isPrefix ? `+ ${actionType}` : '';
+  const filteredFieldsChanged = isGlossaryTerm
+    ? fieldsChanged.filter((field) => field.name !== 'status')
+    : fieldsChanged;
+
+  let summaryText = '';
+
+  if (!isEmpty(filteredFieldsChanged)) {
+    summaryText = `${prefix} ${filteredFieldsChanged
+      .map(summaryFormatter)
+      .join(', ')} ${
+      !isPrefix
+        ? t('label.has-been-action-type-lowercase', {
+            actionType: actionText,
+          })
+        : ''
+    } `;
+  }
+
+  const isGlossaryTermStatusUpdated = fieldsChanged.some(
+    (field) => field.name === 'status'
+  );
+
+  const glossaryTermApprovalText = isGlossaryTermStatusUpdated
+    ? getGlossaryTermApprovalText(fieldsChanged)
+    : '';
+
+  return `${glossaryTermApprovalText} ${summaryText}`;
+};
+
+export const getSummary = ({
+  changeDescription,
+  isPrefix = false,
+  isGlossaryTerm = false,
+}: {
+  changeDescription: ChangeDescription;
+  isPrefix?: boolean;
+  isGlossaryTerm?: boolean;
+}) => {
+  const fieldsAdded = [...(changeDescription?.fieldsAdded ?? [])];
+  const fieldsDeleted = [...(changeDescription?.fieldsDeleted ?? [])];
   const fieldsUpdated = [
     ...(changeDescription?.fieldsUpdated?.filter(
       (field) => field.name !== 'deleted'
-    ) || []),
+    ) ?? []),
   ];
   const isDeleteUpdated = [
     ...(changeDescription?.fieldsUpdated?.filter(
       (field) => field.name === 'deleted'
-    ) || []),
+    ) ?? []),
   ];
 
   return (
     <Fragment>
       {isDeleteUpdated?.length > 0 ? (
-        <p className="tw-mb-2">
+        <Typography.Paragraph>
           {isDeleteUpdated
             .map((field) => {
               return field.newValue
-                ? 'Entity has been deleted'
-                : 'Entity has been restored';
+                ? t('message.data-asset-has-been-action-type', {
+                    actionType: t('label.deleted-lowercase'),
+                  })
+                : t('message.data-asset-has-been-action-type', {
+                    actionType: t('label.restored-lowercase'),
+                  });
             })
             .join(', ')}
-        </p>
+        </Typography.Paragraph>
       ) : null}
       {fieldsAdded?.length > 0 ? (
-        <p className="tw-mb-2">
-          {`${isPrefix ? '+ Added' : ''} ${fieldsAdded
-            .map(summaryFormatter)
-            .join(', ')} ${!isPrefix ? `has been added` : ''}`}{' '}
-        </p>
+        <Typography.Paragraph>
+          {getSummaryText({
+            isPrefix,
+            fieldsChanged: fieldsAdded,
+            actionType: t('label.added'),
+            actionText: t('label.added-lowercase'),
+          })}
+        </Typography.Paragraph>
       ) : null}
       {fieldsUpdated?.length ? (
-        <p className="tw-mb-2">
-          {`${isPrefix ? 'Edited' : ''} ${fieldsUpdated
-            .map(summaryFormatter)
-            .join(', ')} ${!isPrefix ? `has been updated` : ''}`}{' '}
-        </p>
+        <Typography.Paragraph>
+          {getSummaryText({
+            isPrefix,
+            fieldsChanged: fieldsUpdated,
+            actionType: t('label.edited'),
+            actionText: t('label.updated-lowercase'),
+            isGlossaryTerm,
+          })}
+        </Typography.Paragraph>
       ) : null}
       {fieldsDeleted?.length ? (
-        <p className="tw-mb-2">
-          {`${isPrefix ? '- Removed' : ''} ${fieldsDeleted
-            .map(summaryFormatter)
-            .join(', ')} ${!isPrefix ? `has been Deleted` : ''}`}{' '}
-        </p>
+        <Typography.Paragraph>
+          {getSummaryText({
+            isPrefix,
+            fieldsChanged: fieldsDeleted,
+            actionType: t('label.removed'),
+            actionText: t('label.deleted-lowercase'),
+          })}
+        </Typography.Paragraph>
       ) : null}
     </Fragment>
   );
@@ -602,4 +467,602 @@ export const isMajorVersion = (version1: string, version2: string) => {
   }
 
   return flag;
+};
+
+// remove tags from a list if same present in b list
+export const removeDuplicateTags = (a: TagLabel[], b: TagLabel[]): TagLabel[] =>
+  a.filter(
+    (item) => !b.map((secondItem) => secondItem.tagFQN).includes(item.tagFQN)
+  );
+
+export function getEntityDescriptionDiff<A extends AssetsChildForVersionPages>(
+  entityDiff: EntityDiffProps,
+  changedEntityName?: string,
+  entityList: A[] = []
+) {
+  const oldDescription = getChangedEntityOldValue(entityDiff);
+  const newDescription = getChangedEntityNewValue(entityDiff);
+
+  const formatEntityData = (arr: Array<A>) => {
+    arr?.forEach((i) => {
+      if (isEqual(i.name, changedEntityName)) {
+        i.description = getTextDiff(
+          oldDescription ?? '',
+          newDescription ?? '',
+          i.description
+        );
+      } else {
+        formatEntityData(i?.children as Array<A>);
+      }
+    });
+  };
+
+  formatEntityData(entityList);
+
+  return entityList;
+}
+
+export function getEntityDisplayNameDiff<
+  A extends TableColumn | ContainerColumn | Field
+>(
+  entityDiff: EntityDiffProps,
+  changedEntityName?: string,
+  entityList: A[] = []
+) {
+  const oldDisplayName = getChangedEntityOldValue(entityDiff);
+  const newDisplayName = getChangedEntityNewValue(entityDiff);
+
+  const formatEntityData = (arr: Array<A>) => {
+    arr?.forEach((i) => {
+      if (isEqual(i.name, changedEntityName)) {
+        i.displayName = getTextDiff(
+          oldDisplayName ?? '',
+          newDisplayName ?? '',
+          i.displayName
+        );
+      } else {
+        formatEntityData(i?.children as Array<A>);
+      }
+    });
+  };
+
+  formatEntityData(entityList);
+
+  return entityList;
+}
+
+export function getEntityTagDiff<
+  A extends TableColumn | ContainerColumn | Field
+>(entityDiff: EntityDiffProps, changedEntityName?: string, entityList?: A[]) {
+  const oldTags: TagLabel[] = JSON.parse(
+    getChangedEntityOldValue(entityDiff) ?? '[]'
+  );
+  const newTags: TagLabel[] = JSON.parse(
+    getChangedEntityNewValue(entityDiff) ?? '[]'
+  );
+
+  const formatColumnData = (arr: Array<A>) => {
+    arr?.forEach((i) => {
+      if (isEqual(i.name, changedEntityName)) {
+        const flag: { [x: string]: boolean } = {};
+        const uniqueTags: TagLabelWithStatus[] = [];
+        const tagsDiff = getTagsDiff(oldTags, newTags);
+
+        [...tagsDiff, ...(i.tags as TagLabelWithStatus[])].forEach(
+          (elem: TagLabelWithStatus) => {
+            if (!flag[elem.tagFQN]) {
+              flag[elem.tagFQN] = true;
+              uniqueTags.push(elem);
+            }
+          }
+        );
+        i.tags = uniqueTags;
+      } else {
+        formatColumnData(i?.children as Array<A>);
+      }
+    });
+  };
+
+  formatColumnData(entityList ?? []);
+
+  return entityList ?? [];
+}
+
+export const getEntityReferenceDiffFromFieldName = (
+  fieldName: string,
+  changeDescription: ChangeDescription,
+  entity?: EntityReference
+) => {
+  const entityDiff = getDiffByFieldName(fieldName, changeDescription, true);
+
+  const oldEntity = JSON.parse(getChangedEntityOldValue(entityDiff) ?? '{}');
+  const newEntity = JSON.parse(getChangedEntityNewValue(entityDiff) ?? '{}');
+  const entityPlaceholder = getEntityName(entity);
+
+  let entityRef = entity;
+  let entityDisplayName: ReactNode = getEntityName(entity);
+
+  if (
+    !isUndefined(entityDiff.added) ||
+    !isUndefined(entityDiff.deleted) ||
+    !isUndefined(entityDiff.updated)
+  ) {
+    entityRef = isEmpty(newEntity) ? oldEntity : newEntity;
+    entityDisplayName = getDiffValue(
+      getEntityName(oldEntity),
+      getEntityName(newEntity)
+    );
+  } else if (entity) {
+    entityDisplayName = entityPlaceholder;
+  }
+
+  return {
+    entityRef,
+    entityDisplayName,
+  };
+};
+
+export const getCommonExtraInfoForVersionDetails = (
+  changeDescription: ChangeDescription,
+  owners?: EntityReference[],
+  tier?: TagLabel,
+  domain?: EntityReference
+) => {
+  const { owners: ownerRef, ownerDisplayName } = getOwnerDiff(
+    owners ?? [],
+    changeDescription
+  );
+
+  const { entityDisplayName: domainDisplayName } =
+    getEntityReferenceDiffFromFieldName('domain', changeDescription, domain);
+
+  const tagsDiff = getDiffByFieldName('tags', changeDescription, true);
+  const newTier = [
+    ...JSON.parse(getChangedEntityNewValue(tagsDiff) ?? '[]'),
+  ].find((t) => (t?.tagFQN as string).startsWith('Tier'));
+
+  const oldTier = [
+    ...JSON.parse(getChangedEntityOldValue(tagsDiff) ?? '[]'),
+  ].find((t) => (t?.tagFQN as string).startsWith('Tier'));
+
+  let tierDisplayName: ReactNode = '';
+
+  if (!isUndefined(newTier) || !isUndefined(oldTier)) {
+    tierDisplayName = getDiffValue(
+      oldTier?.tagFQN?.split(FQN_SEPARATOR_CHAR)[1] || '',
+      newTier?.tagFQN?.split(FQN_SEPARATOR_CHAR)[1] || ''
+    );
+  } else if (tier?.tagFQN) {
+    tierDisplayName = tier?.tagFQN.split(FQN_SEPARATOR_CHAR)[1];
+  }
+
+  const extraInfo = {
+    ownerRef,
+    ownerDisplayName,
+    domainDisplayName,
+    tierDisplayName,
+  };
+
+  return extraInfo;
+};
+
+export function getNewColumnFromColDiff<
+  A extends TableColumn | ContainerColumn
+>(newCol: Array<A>): Array<A> {
+  return newCol.map((col) => {
+    let children: Array<A> | undefined;
+    if (!isEmpty(col.children)) {
+      children = getNewColumnFromColDiff(col.children as Array<A>);
+    }
+
+    return {
+      ...col,
+      tags: col.tags?.map((tag) => ({ ...tag, removed: true })),
+      description: getTextDiff(col.description ?? '', ''),
+      dataTypeDisplay: getTextDiff(col.dataTypeDisplay ?? '', ''),
+      name: getTextDiff(col.name, ''),
+      children,
+    };
+  });
+}
+
+function createAddedColumnsDiff<A extends TableColumn | ContainerColumn>(
+  columnsDiff: EntityDiffProps,
+  colList: A[] = []
+) {
+  try {
+    const newCol: Array<A> = JSON.parse(columnsDiff.added?.newValue ?? '[]');
+
+    newCol.forEach((col) => {
+      const formatColumnData = (arr: Array<A>, updateAll?: boolean) => {
+        arr?.forEach((i) => {
+          if (isEqual(i.name, col.name) || updateAll) {
+            i.tags = i.tags?.map((tag) => ({ ...tag, added: true }));
+            i.description = getTextDiff('', i.description ?? '');
+            i.dataTypeDisplay = getTextDiff('', i.dataTypeDisplay ?? '');
+            i.name = getTextDiff('', i.name);
+            if (!isEmpty(i.children)) {
+              formatColumnData(i?.children as Array<A>, true);
+            }
+          } else {
+            formatColumnData(i?.children as Array<A>);
+          }
+        });
+      };
+      formatColumnData(colList);
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+  }
+}
+
+export function addDeletedColumnsDiff<A extends TableColumn | ContainerColumn>(
+  columnsDiff: EntityDiffProps,
+  colList: A[] = [],
+  changedEntity = ''
+) {
+  try {
+    const newCol: Array<A> = JSON.parse(columnsDiff.deleted?.oldValue ?? '[]');
+    const newColumns = getNewColumnFromColDiff(newCol);
+
+    const insertNewColumn = (
+      changedEntityField: string,
+      colArray: Array<TableColumn | ContainerColumn>
+    ) => {
+      const fieldsArray = changedEntityField.split(FQN_SEPARATOR_CHAR);
+      if (isEmpty(changedEntityField)) {
+        const nonExistingColumns = newColumns.filter((newColumn) =>
+          isUndefined(colArray.find((col) => col.name === newColumn.name))
+        );
+        colArray.unshift(...nonExistingColumns);
+      } else {
+        const parentField = fieldsArray.shift();
+        const arr = colArray.find((col) => col.name === parentField)?.children;
+
+        insertNewColumn(fieldsArray.join(FQN_SEPARATOR_CHAR), arr ?? []);
+      }
+    };
+    insertNewColumn(changedEntity, colList);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+  }
+}
+
+export function getColumnsDiff<A extends TableColumn | ContainerColumn>(
+  columnsDiff: EntityDiffProps,
+  colList: A[] = [],
+  changedEntity = ''
+) {
+  if (columnsDiff.added) {
+    createAddedColumnsDiff(columnsDiff, colList);
+  }
+  if (columnsDiff.deleted) {
+    addDeletedColumnsDiff(columnsDiff, colList, changedEntity);
+  }
+
+  return uniqBy(colList, 'name');
+}
+
+export const getAllDiffByFieldName = (
+  name: string,
+  changeDescription: ChangeDescription,
+  exactMatch?: boolean
+): EntityDiffWithMultiChanges => {
+  const fieldsAdded = changeDescription?.fieldsAdded ?? [];
+  const fieldsDeleted = changeDescription?.fieldsDeleted ?? [];
+  const fieldsUpdated = changeDescription?.fieldsUpdated ?? [];
+  if (exactMatch) {
+    return {
+      added: fieldsAdded.filter((ch) => ch.name === name),
+      deleted: fieldsDeleted.filter((ch) => ch.name === name),
+      updated: fieldsUpdated.filter((ch) => ch.name === name),
+    };
+  } else {
+    return {
+      added: fieldsAdded.filter((ch) => ch.name?.includes(name)),
+      deleted: fieldsDeleted.filter((ch) => ch.name?.includes(name)),
+      updated: fieldsUpdated.filter((ch) => ch.name?.includes(name)),
+    };
+  }
+};
+
+export const getAllChangedEntityNames = (
+  diffObject: EntityDiffWithMultiChanges
+) => {
+  const changedEntityNames: string[] = [];
+  Object.keys(diffObject).forEach((key) => {
+    const changedValues = diffObject[key as keyof EntityDiffWithMultiChanges];
+
+    if (changedValues) {
+      changedValues.forEach((value) => {
+        if (value.name) {
+          changedEntityNames.push(value.name);
+        }
+      });
+    }
+  });
+
+  return changedEntityNames;
+};
+
+export function getColumnsDataWithVersionChanges<
+  A extends TableColumn | ContainerColumn | DataModelColumn
+>(
+  changeDescription: ChangeDescription,
+  colList?: A[],
+  isContainerEntity?: boolean
+): Array<A> {
+  const columnsDiff = getAllDiffByFieldName(
+    EntityField.COLUMNS,
+    changeDescription
+  );
+
+  const changedFields = getAllChangedEntityNames(columnsDiff);
+
+  let newColumnsList = cloneDeep(colList);
+
+  changedFields?.forEach((changedField) => {
+    const columnDiff = getDiffByFieldName(changedField, changeDescription);
+    const changedEntityName = getChangedEntityName(columnDiff);
+    const changedColName = getChangeColumnNameFromDiffValue(changedEntityName);
+
+    if (isEndsWithField(EntityField.DESCRIPTION, changedEntityName)) {
+      newColumnsList = [
+        ...getEntityDescriptionDiff(columnDiff, changedColName, colList),
+      ];
+    } else if (isEndsWithField(EntityField.TAGS, changedEntityName)) {
+      newColumnsList = [
+        ...getEntityTagDiff(columnDiff, changedColName, colList),
+      ];
+    } else if (isEndsWithField(EntityField.DISPLAYNAME, changedEntityName)) {
+      newColumnsList = [
+        ...getEntityDisplayNameDiff(columnDiff, changedColName, colList),
+      ];
+    } else if (!isEndsWithField(EntityField.CONSTRAINT, changedEntityName)) {
+      const changedEntity = changedEntityName
+        ?.split(FQN_SEPARATOR_CHAR)
+        .slice(isContainerEntity ? 2 : 1)
+        .join(FQN_SEPARATOR_CHAR);
+      newColumnsList = [...getColumnsDiff(columnDiff, colList, changedEntity)];
+    }
+  });
+
+  return newColumnsList ?? [];
+}
+
+export const getUpdatedExtensionDiffFields = (
+  entityDetails: ExtentionEntities[ExtentionEntitiesKeys],
+  extensionDiff: EntityDiffProps
+) => {
+  const extensionObj = entityDetails.extension;
+  const newValues = getChangedEntityNewValue(extensionDiff);
+  const oldValues = getChangedEntityOldValue(extensionDiff);
+
+  const changedFieldName = extensionDiff.updated?.name?.split('.')[1];
+
+  return extensionObj && changedFieldName
+    ? {
+        extensionObject: {
+          ...extensionObj,
+          [changedFieldName]: getTextDiff(oldValues, newValues),
+        },
+      }
+    : { extensionObject: {} };
+};
+
+export const getConstraintChanges = (
+  changeDescription: ChangeDescription,
+  fieldName: EntityField
+) => {
+  const constraintAddedDiff = getAllDiffByFieldName(
+    fieldName,
+    changeDescription
+  ).added;
+  const constraintDeletedDiff = getAllDiffByFieldName(
+    fieldName,
+    changeDescription
+  ).deleted;
+  const constraintUpdatedDiff = getAllDiffByFieldName(
+    fieldName,
+    changeDescription
+  ).updated;
+
+  const addedConstraintDiffs: FieldChange[] = [
+    ...(constraintAddedDiff ?? []),
+    ...(constraintUpdatedDiff ?? []),
+  ];
+  const deletedConstraintDiffs: FieldChange[] = [
+    ...(constraintDeletedDiff ?? []),
+    ...(constraintUpdatedDiff ?? []),
+  ];
+
+  return { addedConstraintDiffs, deletedConstraintDiffs };
+};
+
+const getMutuallyExclusiveDiffLabel = (value: boolean) => {
+  if (value) {
+    return t('label.yes');
+  } else {
+    return t('label.no');
+  }
+};
+
+export const getMutuallyExclusiveDiff = (
+  changeDescription: ChangeDescription,
+  field: string,
+  fallbackText?: string
+) => {
+  const fieldDiff = getDiffByFieldName(field, changeDescription, true);
+  const oldField = getChangedEntityOldValue(fieldDiff);
+  const newField = getChangedEntityNewValue(fieldDiff);
+
+  const oldDisplayField = getMutuallyExclusiveDiffLabel(oldField);
+  const newDisplayField = getMutuallyExclusiveDiffLabel(newField);
+
+  return getTextDiff(
+    toString(oldDisplayField) ?? '',
+    toString(newDisplayField),
+    toString(fallbackText)
+  );
+};
+
+export const getBasicEntityInfoFromVersionData = (
+  currentVersionData: VersionEntityTypes,
+  entityType: EntityType
+) => ({
+  tier: getTierTags(currentVersionData.tags ?? []),
+  owners: currentVersionData.owners,
+  domain: (currentVersionData as Exclude<VersionEntityTypes, MetadataService>)
+    .domain,
+  breadcrumbLinks: getEntityBreadcrumbs(currentVersionData, entityType),
+  changeDescription:
+    currentVersionData.changeDescription ?? ({} as ChangeDescription),
+  deleted: Boolean(currentVersionData.deleted),
+});
+
+export const getCommonDiffsFromVersionData = (
+  currentVersionData: VersionEntityTypes,
+  changeDescription: ChangeDescription
+) => ({
+  tags: getEntityVersionTags(currentVersionData, changeDescription),
+  displayName: getEntityVersionByField(
+    changeDescription,
+    EntityField.DISPLAYNAME,
+    currentVersionData.displayName
+  ),
+  description: getEntityVersionByField(
+    changeDescription,
+    EntityField.DESCRIPTION,
+    currentVersionData.description
+  ),
+});
+
+export const renderVersionButton = (
+  version: string,
+  current: string,
+  versionHandler: (version: string) => void,
+  className?: string
+) => {
+  const currV = JSON.parse(version);
+
+  const majorVersionChecks = () => {
+    return isMajorVersion(
+      parseFloat(currV?.changeDescription?.previousVersion)
+        .toFixed(1)
+        .toString(),
+      parseFloat(currV?.version).toFixed(1).toString()
+    );
+  };
+
+  return (
+    <Fragment key={currV.version}>
+      <VersionButton
+        className={className}
+        isMajorVersion={majorVersionChecks()}
+        selected={toString(currV.version) === current}
+        version={currV}
+        onVersionSelect={versionHandler}
+      />
+    </Fragment>
+  );
+};
+
+const getOwnerLabelName = (
+  reviewer: EntityReference,
+  operation: EntityChangeOperations
+) => {
+  switch (operation) {
+    case EntityChangeOperations.ADDED:
+      return getAddedDiffElement(getEntityName(reviewer));
+    case EntityChangeOperations.DELETED:
+      return getRemovedDiffElement(getEntityName(reviewer));
+    case EntityChangeOperations.UPDATED:
+    case EntityChangeOperations.NORMAL:
+    default:
+      return getEntityName(reviewer);
+  }
+};
+
+export const getOwnerDiff = (
+  defaultItems: EntityReference[],
+  changeDescription?: ChangeDescription,
+  ownerField = TabSpecificField.OWNERS
+) => {
+  const fieldDiff = getDiffByFieldName(
+    ownerField,
+    changeDescription as ChangeDescription
+  );
+
+  const addedItems: EntityReference[] = JSON.parse(
+    getChangedEntityNewValue(fieldDiff) ?? '[]'
+  );
+  const deletedItems: EntityReference[] = JSON.parse(
+    getChangedEntityOldValue(fieldDiff) ?? '[]'
+  );
+
+  const unchangedItems = defaultItems.filter(
+    (item: EntityReference) =>
+      !addedItems.find((addedItem: EntityReference) => addedItem.id === item.id)
+  );
+
+  const allItems = [
+    ...unchangedItems.map((item) => ({
+      item,
+      operation: EntityChangeOperations.NORMAL,
+    })),
+    ...addedItems.map((item) => ({
+      item,
+      operation: EntityChangeOperations.ADDED,
+    })),
+    ...deletedItems.map((item) => ({
+      item,
+      operation: EntityChangeOperations.DELETED,
+    })),
+  ];
+
+  return {
+    owners: allItems.map(({ item }) => item),
+    ownerDisplayName: allItems.map(({ item, operation }) =>
+      getOwnerLabelName(item, operation)
+    ),
+  };
+};
+
+export const getOwnerVersionLabel = (
+  entity: {
+    [TabSpecificField.OWNERS]?: EntityReference[];
+    changeDescription?: ChangeDescription;
+  },
+  isVersionView: boolean,
+  ownerField = TabSpecificField.OWNERS, // Can be owners, experts, reviewers all are OwnerLabels
+  hasPermission = true
+) => {
+  const defaultItems: EntityReference[] = get(entity, ownerField, []);
+
+  if (isVersionView) {
+    const { owners, ownerDisplayName } = getOwnerDiff(
+      defaultItems,
+      entity.changeDescription,
+      ownerField
+    );
+
+    if (!isEmpty(owners)) {
+      return <OwnerLabel ownerDisplayName={ownerDisplayName} owners={owners} />;
+    }
+  }
+
+  if (defaultItems.length > 0) {
+    return (
+      <OwnerLabel
+        ownerDisplayName={defaultItems.map((item: EntityReference) =>
+          getOwnerLabelName(item, EntityChangeOperations.NORMAL)
+        )}
+        owners={defaultItems}
+      />
+    );
+  }
+
+  return hasPermission ? null : <div>{NO_DATA_PLACEHOLDER}</div>;
 };

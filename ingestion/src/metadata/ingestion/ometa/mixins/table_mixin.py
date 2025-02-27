@@ -13,25 +13,38 @@ Mixin class containing Table specific methods
 
 To be used by OpenMetadata class
 """
-from typing import List, Optional, Union
+import traceback
+from typing import List, Optional, Type, TypeVar
 
-from metadata.generated.schema.api.data.createTable import CreateTableRequest
-from metadata.generated.schema.api.tests.createColumnTest import CreateColumnTestRequest
-from metadata.generated.schema.api.tests.createTableTest import CreateTableTestRequest
-from metadata.generated.schema.entity.data.location import Location
+from pydantic import BaseModel, validate_call
+
+from metadata.generated.schema.api.data.createTableProfile import (
+    CreateTableProfileRequest,
+)
+from metadata.generated.schema.api.tests.createCustomMetric import (
+    CreateCustomMetricRequest,
+)
 from metadata.generated.schema.entity.data.table import (
+    ColumnProfile,
     DataModel,
-    SqlQuery,
+    SystemProfile,
     Table,
     TableData,
     TableJoins,
     TableProfile,
+    TableProfilerConfig,
 )
+from metadata.generated.schema.type.basic import FullyQualifiedEntityName, Uuid
 from metadata.generated.schema.type.usageRequest import UsageRequest
 from metadata.ingestion.ometa.client import REST
-from metadata.ingestion.ometa.utils import ometa_logger
+from metadata.ingestion.ometa.models import EntityList
+from metadata.ingestion.ometa.utils import model_str, quote
+from metadata.utils.logger import ometa_logger
 
 logger = ometa_logger()
+
+LRU_CACHE_SIZE = 4096
+T = TypeVar("T", bound=BaseModel)
 
 
 class OMetaTableMixin:
@@ -43,48 +56,90 @@ class OMetaTableMixin:
 
     client: REST
 
-    def add_location(self, table: Table, location: Location) -> None:
-        """
-        PUT location for a table
-
-        :param table: Table Entity to update
-        :param location: Location Entity to add
-        """
-        self.client.put(
-            f"{self.get_suffix(Table)}/{table.id.__root__}/location",
-            data=str(location.id.__root__),
-        )
-
     def ingest_table_sample_data(
         self, table: Table, sample_data: TableData
-    ) -> TableData:
+    ) -> Optional[TableData]:
         """
         PUT sample data for a table
 
         :param table: Table Entity to update
         :param sample_data: Data to add
         """
-        resp = self.client.put(
-            f"{self.get_suffix(Table)}/{table.id.__root__}/sampleData",
-            data=sample_data.json(),
-        )
-        return TableData(**resp["sampleData"])
+        resp = None
+        try:
+            resp = self.client.put(
+                f"{self.get_suffix(Table)}/{table.id.root}/sampleData",
+                data=sample_data.model_dump_json(),
+            )
+        except Exception as exc:
+            logger.debug(traceback.format_exc())
+            logger.warning(
+                f"Error trying to PUT sample data for {table.fullyQualifiedName.root}: {exc}"
+            )
 
-    def ingest_table_profile_data(
-        self, table: Table, table_profile: List[TableProfile]
-    ) -> List[TableProfile]:
+        if resp:
+            try:
+                return TableData(**resp["sampleData"])
+            except UnicodeError as err:
+                logger.debug(traceback.format_exc())
+                logger.warning(
+                    f"Unicode Error parsing the sample data response from {table.fullyQualifiedName.root}: {err}"
+                )
+            except Exception as exc:
+                logger.debug(traceback.format_exc())
+                logger.warning(
+                    f"Error trying to parse sample data results from {table.fullyQualifiedName.root}: {exc}"
+                )
+
+        return None
+
+    def get_sample_data(self, table: Table) -> Optional[Table]:
+        """
+        GET call for the /sampleData endpoint for a given Table
+
+        Returns a Table entity with TableData (sampleData informed)
+        """
+        resp = None
+        try:
+            resp = self.client.get(
+                f"{self.get_suffix(Table)}/{table.id.root}/sampleData",
+            )
+        except Exception as exc:
+            logger.debug(traceback.format_exc())
+            logger.warning(
+                f"Error trying to GET sample data for {table.fullyQualifiedName.root}: {exc}"
+            )
+
+        if resp:
+            try:
+                return Table(**resp)
+            except UnicodeError as err:
+                logger.debug(traceback.format_exc())
+                logger.warning(
+                    f"Unicode Error parsing the sample data response from {table.fullyQualifiedName.root}: {err}"
+                )
+            except Exception as exc:
+                logger.debug(traceback.format_exc())
+                logger.warning(
+                    f"Error trying to parse sample data results from {table.fullyQualifiedName.root}: {exc}"
+                )
+
+        return None
+
+    def ingest_profile_data(
+        self, table: Table, profile_request: CreateTableProfileRequest
+    ) -> Table:
         """
         PUT profile data for a table
 
         :param table: Table Entity to update
         :param table_profile: Profile data to add
         """
-        for profile in table_profile:
-            resp = self.client.put(
-                f"{self.get_suffix(Table)}/{table.id.__root__}/tableProfile",
-                data=profile.json(),
-            )
-        return [TableProfile(**t) for t in resp["tableProfile"]]
+        resp = self.client.put(
+            f"{self.get_suffix(Table)}/{table.id.root}/tableProfile",
+            data=profile_request.model_dump_json(),
+        )
+        return Table(**resp)
 
     def ingest_table_data_model(self, table: Table, data_model: DataModel) -> Table:
         """
@@ -94,25 +149,10 @@ class OMetaTableMixin:
         :param data_model: Model to add
         """
         resp = self.client.put(
-            f"{self.get_suffix(Table)}/{table.id.__root__}/dataModel",
-            data=data_model.json(),
+            f"{self.get_suffix(Table)}/{table.id.root}/dataModel",
+            data=data_model.model_dump_json(),
         )
         return Table(**resp)
-
-    def ingest_table_queries_data(
-        self, table: Table, table_queries: List[SqlQuery]
-    ) -> None:
-        """
-        PUT table queries for a table
-
-        :param table: Table Entity to update
-        :param table_queries: SqlQuery to add
-        """
-        for query in table_queries:
-            self.client.put(
-                f"{self.get_suffix(Table)}/{table.id.__root__}/tableQuery",
-                data=query.json(),
-            )
 
     def publish_table_usage(
         self, table: Table, table_usage_request: UsageRequest
@@ -124,7 +164,7 @@ class OMetaTableMixin:
         :param table_usage_request: Usage data to add
         """
         resp = self.client.post(
-            f"/usage/table/{table.id.__root__}", data=table_usage_request.json()
+            f"/usage/table/{table.id.root}", data=table_usage_request.model_dump_json()
         )
         logger.debug("published table usage %s", resp)
 
@@ -138,56 +178,37 @@ class OMetaTableMixin:
         :param table_join_request: Join data to add
         """
 
-        logger.info("table join request %s", table_join_request.json())
+        logger.info("table join request %s", table_join_request.model_dump_json())
         resp = self.client.put(
-            f"{self.get_suffix(Table)}/{table.id.__root__}/joins",
-            data=table_join_request.json(),
+            f"{self.get_suffix(Table)}/{table.id.root}/joins",
+            data=table_join_request.model_dump_json(),
         )
         logger.debug("published frequently joined with %s", resp)
 
-    def _add_tests(
+    def _create_or_update_table_profiler_config(
         self,
-        table: Table,
-        test: Union[CreateTableTestRequest, CreateColumnTestRequest],
-        path: str,
-    ) -> Table:
-        """
-        Internal function to add test data
+        table_id: Uuid,
+        table_profiler_config: TableProfilerConfig,
+    ):
+        """create or update profler config
 
-        :param table: Table instance
-        :param test: TableTest or ColumnTest to add
-        :param path: tableTest or columnTest str
-        :return: Updated Table instance
+        Args:
+            table: table entity
+            table_profiler_config: profiler config object,
+            path: tableProfilerConfig
+
+        Returns:
+
         """
         resp = self.client.put(
-            f"{self.get_suffix(Table)}/{table.id.__root__}/{path}", data=test.json()
+            f"{self.get_suffix(Table)}/{model_str(table_id)}/tableProfilerConfig",
+            data=table_profiler_config.model_dump_json(),
         )
-
         return Table(**resp)
 
-    def add_table_test(self, table: Table, table_test: CreateTableTestRequest) -> Table:
-        """
-        For a given table, PUT new TableTest definitions and results
-
-        :param table: Table instance
-        :param table_test: table test data
-        :return: Updates Table instance
-        """
-
-        return self._add_tests(table=table, test=table_test, path="tableTest")
-
-    def add_column_test(self, table: Table, col_test: CreateColumnTestRequest) -> Table:
-        """
-        For a given table, PUT new TableTest definitions and results
-
-        :param table: Table instance
-        :param col_test: column test data
-        :return: Updates Table instance
-        """
-
-        return self._add_tests(table=table, test=col_test, path="columnTest")
-
-    def update_profile_sample(self, fqn: str, profile_sample: float) -> Optional[Table]:
+    def create_or_update_table_profiler_config(
+        self, fqn: str, table_profiler_config: TableProfilerConfig
+    ) -> Optional[Table]:
         """
         Update the profileSample property of a Table, given
         its FQN.
@@ -198,45 +219,89 @@ class OMetaTableMixin:
         """
         table = self.get_by_name(entity=Table, fqn=fqn)
         if table:
-            updated = CreateTableRequest(
-                name=table.name,
-                description=table.description,
-                tableType=table.tableType,
-                columns=table.columns,
-                tableConstraints=table.tableConstraints,
-                profileSample=profile_sample,  # Updated!
-                owner=table.owner,
-                databaseSchema=table.databaseSchema,
-                tags=table.tags,
-                viewDefinition=table.viewDefinition,
+            return self._create_or_update_table_profiler_config(
+                table.id,
+                table_profiler_config=table_profiler_config,
             )
-            return self.create_or_update(updated)
 
         return None
 
-    def update_profile_query(self, fqn: str, **kwargs) -> Optional[Table]:
-        """
-        Update the profileQuery property of a Table, given
-        its FQN.
+    @validate_call
+    def get_profile_data(
+        self,
+        fqn: str,
+        start_ts: int,
+        end_ts: int,
+        limit=100,
+        after=None,
+        profile_type: Type[T] = TableProfile,
+    ) -> EntityList[T]:
+        """Get profile data
 
-        :param fqn: Table FQN
-        :param profile_sample: new profile sample to set
-        :return: Updated table
+        Args:
+            fqn (str): fullyQualifiedName
+            start_ts (int): start timestamp
+            end_ts (int): end timestamp
+            limit (int, optional): limit of record to return. Defaults to 100.
+            after (_type_, optional): use for API pagination. Defaults to None.
+            profile_type (Union[Type[TableProfile], Type[ColumnProfile]], optional):
+                Profile type to retrieve. Defaults to TableProfile.
+
+        Raises:
+            TypeError: if `profile_type` is not TableProfile or ColumnProfile
+
+        Returns:
+            EntityList: EntityList list object
         """
-        table = self.get_by_name(entity=Table, fqn=fqn)
-        if table:
-            updated = CreateTableRequest(
-                name=table.name,
-                description=table.description,
-                tableType=table.tableType,
-                columns=table.columns,
-                tableConstraints=table.tableConstraints,
-                owner=table.owner,
-                databaseSchema=table.databaseSchema,
-                tags=table.tags,
-                viewDefinition=table.viewDefinition,
-                **kwargs,
+        url_after = f"&after={after}" if after else ""
+        profile_type_url = profile_type.__name__[0].lower() + profile_type.__name__[1:]
+
+        resp = self.client.get(
+            f"{self.get_suffix(Table)}/{quote(fqn)}/{profile_type_url}?limit={limit}{url_after}",
+            data={"startTs": start_ts, "endTs": end_ts},
+        )
+
+        if profile_type in (TableProfile, SystemProfile):
+            data: List[T] = [profile_type(**datum) for datum in resp["data"]]  # type: ignore
+        elif profile_type is ColumnProfile:
+            split_fqn = fqn.split(".")
+            if len(split_fqn) < 5:
+                raise ValueError(f"{fqn} is not a column fqn")
+            data: List[T] = [ColumnProfile(**datum) for datum in resp["data"]]  # type: ignore
+        else:
+            raise TypeError(
+                f"{profile_type} is not an accepeted type."
+                "Type must be `TableProfile` or `ColumnProfile`"
             )
-            return self.create_or_update(updated)
+        total = resp["paging"]["total"]
+        after = resp["paging"]["after"] if "after" in resp["paging"] else None
 
-        return None
+        return EntityList(entities=data, total=total, after=after)
+
+    def get_latest_table_profile(
+        self, fqn: FullyQualifiedEntityName
+    ) -> Optional[Table]:
+        """Get the latest profile data for a table
+
+        Args:
+            fqn (str): table fully qualified name
+
+        Returns:
+            Optional[Table]: OM table object
+        """
+        return self._get(Table, f"{quote(fqn)}/tableProfile/latest")
+
+    def create_or_update_custom_metric(
+        self, custom_metric: CreateCustomMetricRequest, table_id: str
+    ) -> Table:
+        """Create or update custom metric. If custom metric name matches an existing
+        one then it will be updated.
+
+        Args:
+            custom_metric (CreateCustomMetricRequest): custom metric to be create or updated
+        """
+        resp = self.client.put(
+            f"{self.get_suffix(Table)}/{table_id}/customMetric",
+            data=custom_metric.model_dump_json(),
+        )
+        return Table(**resp)

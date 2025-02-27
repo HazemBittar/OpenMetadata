@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,46 +12,42 @@
  */
 
 const path = require('path');
-const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const WebpackBar = require('webpackbar');
-const webpack = require('webpack');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const BundleAnalyzerPlugin =
-  require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const CompressionPlugin = require('compression-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 
 const outputPath = path.join(__dirname, 'dist/assets');
+const subPath = process.env.APP_SUB_PATH ?? '';
 
 module.exports = {
+  cache: {
+    type: 'filesystem', // Use filesystem for cache
+    buildDependencies: {
+      config: [__filename], // Cache invalidation on config file changes
+    },
+  },
+
   // Production mode
   mode: 'production',
 
   // Input configuration
-  entry: ['@babel/polyfill', path.join(__dirname, 'src/index.js')],
+  entry: path.join(__dirname, 'src/index.tsx'),
 
   // Output configuration
   output: {
     path: outputPath,
-    filename: 'openmetadata.bundle.js',
-    chunkFilename: '[name].[contenthash].js',
-    publicPath: '/', // Ensures bundle is served from absolute path as opposed to relative
+    filename: '[name].[contenthash].js', // Use contenthash for unique filenames
+    chunkFilename: '[name].[contenthash].js', // Ensure unique chunk filenames
+    clean: true, // Clean the output directory before emit
+    publicPath: `${subPath ?? ''}/`,
   },
 
   // Loaders
   module: {
     rules: [
-      // .js and .jsx files to be handled by babel-loader
-      {
-        test: /\.(js|jsx)$/,
-        include: path.resolve(__dirname, 'src'), // Just the source code
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'],
-          },
-        },
-      },
       // .mjs files to be handled
       {
         test: /\.m?js/,
@@ -64,114 +60,147 @@ module.exports = {
       // .ts and .tsx files to be handled by ts-loader
       {
         test: /\.(ts|tsx)$/,
-        loader: 'ts-loader',
-        options: {
-          transpileOnly: true, // Speed up compilation in development mode
-        },
-        include: path.resolve(__dirname, 'src'), // Just the source code
+        exclude: [/node_modules/, /dist/],
+        include: path.resolve(__dirname, 'src'),
+        use: [
+          {
+            loader: 'thread-loader',
+            options: {
+              workers: require('os').cpus().length - 1, // Use all available CPU cores minus one
+            },
+          },
+          {
+            loader: 'ts-loader',
+            options: {
+              configFile: 'tsconfig.json',
+              happyPackMode: true, // Enable faster builds with HappyPack compatibility
+              transpileOnly: true, // Speed up compilation in development mode
+            },
+          },
+        ],
       },
-      // .css and .scss files to be handled by sass-loader
-      // include scss rule and sass-loader if injecting scss/sass file
+
+      // .css files to be handled by style-loader & css-loader
       {
-        test: /\.(css|s[ac]ss)$/,
+        test: /\.(css)$/,
+        use: ['style-loader', 'css-loader'],
+      },
+
+      // .less files to be handled by less-loader
+      {
+        test: /\.less$/,
         use: [
           'style-loader',
           'css-loader',
+          'postcss-loader',
           {
-            loader: 'sass-loader',
+            loader: 'less-loader',
             options: {
-              // Prefer `dart-sass`
-              implementation: require.resolve('sass'),
+              lessOptions: {
+                javascriptEnabled: true,
+              },
             },
           },
-          'postcss-loader',
         ],
-        include: [
-          path.resolve(__dirname, 'src'),
-          path.resolve(__dirname, 'node_modules/tailwindcss'),
-          path.resolve(__dirname, 'node_modules/react-tippy'),
-          path.resolve(__dirname, 'node_modules/react-draft-wysiwyg'),
-          path.resolve(__dirname, 'node_modules/codemirror'),
-          path.resolve(__dirname, 'node_modules/rc-tree'),
-          path.resolve(__dirname, 'node_modules/react-toastify'),
-          path.resolve(__dirname, 'node_modules/quill-emoji'),
-        ],
-        // May need to handle files outside the source code
-        // (from node_modules)
       },
+
       // .svg files to be handled by @svgr/webpack
       {
         test: /\.svg$/,
-        use: ['@svgr/webpack'],
-        include: path.resolve(__dirname, 'src'), // Just the source code
+        use: ['@svgr/webpack', 'url-loader'],
+        include: path.resolve(__dirname, 'src'),
       },
-      // different urls to be handled by url-loader
+
+      // Images to be handled by file-loader + image-webpack-loader
       {
-        test: /\.(png|jpg|jpeg|gif|svg|ico|eot|woff|woff2)$/i,
-        use: [
-          {
-            loader: 'url-loader',
-            options: {
-              limit: 8192,
-              name: `[name].[ext]`,
-            },
-          },
-        ],
-        include: [
-          path.resolve(__dirname, 'src'),
-          path.resolve(__dirname, 'node_modules/slick-carousel'),
-          path.resolve(__dirname, 'node_modules/quill-emoji'),
-        ], // Just the source code
-      },
-      // Font files to be handled by file-loader
-      {
-        test: /\.ttf$/,
+        test: /\.(png|jpe?g)$/i,
         use: [
           {
             loader: 'file-loader',
             options: {
-              name: '[name].[ext]',
-              outputPath: 'fonts/',
+              name: 'images/[name].[contenthash].[ext]', // Output file naming
+              outputPath: 'images/', // Directory in the output folder
             },
           },
         ],
-        include: [
-          path.resolve(__dirname, 'src'),
-          path.resolve(__dirname, 'node_modules/slick-carousel'),
-        ], // Just the source code
       },
     ],
   },
 
   // Module resolution
   resolve: {
-    // File types to be handled
-    extensions: ['.ts', '.tsx', '.js', '.jsx', '.css', '.scss', '.svg', '.ttf'],
+    extensions: ['.ts', '.tsx', '.js', '.css', '.less', '.svg'],
     fallback: {
-      http: require.resolve('stream-http'),
       https: require.resolve('https-browserify'),
-      path: require.resolve('path-browserify'),
       fs: false,
+      'process/browser': require.resolve('process/browser'),
+    },
+    alias: {
+      process: 'process/browser',
+      Quill: path.resolve(__dirname, 'node_modules/quill'),
     },
   },
 
+  // Optimizations
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        parallel: true,
+        terserOptions: {
+          compress: {
+            drop_console: true, // Remove console logs for production
+          },
+        },
+      }),
+    ],
+    splitChunks: {
+      chunks: 'all', // Split all types of chunks
+      maxSize: 240000, // Maximum size for chunks
+      cacheGroups: {
+        default: {
+          reuseExistingChunk: true, // Reuse existing chunks
+          priority: -10,
+        },
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all',
+          priority: -20,
+        },
+      },
+    },
+    runtimeChunk: 'single', // Separate runtime code into its own chunk
+    chunkIds: 'deterministic', // Use stable and unique chunk IDs
+  },
+
+  // Plugins
   plugins: [
     // Clean webpack output directory
-    new CleanWebpackPlugin({
-      verbose: true,
-    }),
+    new CleanWebpackPlugin(),
+
     // Generate index.html from template
     new HtmlWebpackPlugin({
       favicon: path.join(__dirname, 'public/favicon.png'),
       hash: true,
+      cache: false,
       template: path.join(__dirname, 'public/index.html'),
       scriptLoading: 'defer',
     }),
-    // Copy favicon, logo and manifest for index.html
+
+    // Copy favicon, logo, manifest, and other assets
     new CopyWebpackPlugin({
       patterns: [
         {
           from: path.join(__dirname, 'public/favicon.png'),
+          to: outputPath,
+        },
+        {
+          from: path.join(__dirname, 'public/favicons/favicon-16x16.png'),
+          to: outputPath,
+        },
+        {
+          from: path.join(__dirname, 'public/favicons/favicon-32x32.png'),
           to: outputPath,
         },
         {
@@ -187,32 +216,37 @@ module.exports = {
           to: outputPath,
         },
         {
-          from: path.join(__dirname, 'public/robots.txt'),
+          from: path.join(__dirname, 'public/locales'),
+          to: outputPath,
+        },
+        {
+          from: path.join(__dirname, 'public/BronzeCertification.svg'),
+          to: outputPath,
+        },
+        {
+          from: path.join(__dirname, 'public/SilverCertification.svg'),
+          to: outputPath,
+        },
+        {
+          from: path.join(__dirname, 'public/GoldCertification.svg'),
           to: outputPath,
         },
       ],
     }),
-    // Build progress bar
-    new WebpackBar({
-      name: '@openmetadata [prod]',
-      color: '#15C39B',
+
+    // Compress output files
+    new CompressionPlugin({
+      algorithm: 'gzip',
+      test: /\.(js|css|html|svg)$/,
     }),
-    new MiniCssExtractPlugin({
-      filename: '[name].bundle.css',
-      chunkFilename: '[id].css',
-    }),
-    new webpack.ProvidePlugin({
-      process: 'process/browser',
-      Buffer: ['buffer', 'Buffer'],
-    }),
-    // Bundle analyzer
+
+    // Bundle analyzer (optional, for debugging)
     new BundleAnalyzerPlugin({
-      analyzerMode: 'static',
-      reportFilename: path.join(
-        __dirname,
-        'webpack/bundle-analyzer-report.html'
-      ),
-      openAnalyzer: false,
+      analyzerMode: 'static', // Outputs an HTML report
+      openAnalyzer: false, // Set to true to open report automatically
     }),
   ],
+
+  // Disable source maps for production
+  devtool: false,
 };

@@ -11,16 +11,19 @@
 """
 Python API REST wrapper and helpers
 """
-import datetime
 import time
-from typing import Callable, List, Optional
+import traceback
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import requests
 from requests.exceptions import HTTPError
 
 from metadata.config.common import ConfigModel
 from metadata.ingestion.ometa.credentials import URL, get_api_version
-from metadata.ingestion.ometa.utils import ometa_logger
+from metadata.ingestion.ometa.ttl_cache import TTLCache
+from metadata.utils.execution_time_tracker import calculate_execution_time
+from metadata.utils.logger import ometa_logger
 
 logger = ometa_logger()
 
@@ -28,6 +31,12 @@ logger = ometa_logger()
 class RetryException(Exception):
     """
     API Client retry exception
+    """
+
+
+class LimitsException(Exception):
+    """
+    API Client Feature Limit exception
     """
 
 
@@ -95,14 +104,19 @@ class ClientConfig(ConfigModel):
     api_version: Optional[str] = "v1"
     retry: Optional[int] = 3
     retry_wait: Optional[int] = 30
-    retry_codes: List[int] = [429, 504]
+    limit_codes: List[int] = [429]
+    retry_codes: List[int] = [504]
     auth_token: Optional[Callable] = None
     access_token: Optional[str] = None
     expires_in: Optional[int] = None
     auth_header: Optional[str] = None
+    extra_headers: Optional[dict] = None
     raw_data: Optional[bool] = False
     allow_redirects: Optional[bool] = False
     auth_token_mode: Optional[str] = "Bearer"
+    verify: Optional[Union[bool, str]] = None
+    cookies: Optional[Any] = None
+    ttl_cache: int = 60
 
 
 # pylint: disable=too-many-instance-attributes
@@ -121,40 +135,64 @@ class REST:
         self._retry = self.config.retry
         self._retry_wait = self.config.retry_wait
         self._retry_codes = self.config.retry_codes
+        self._limit_codes = self.config.limit_codes
         self._auth_token = self.config.auth_token
         self._auth_token_mode = self.config.auth_token_mode
+        self._verify = self.config.verify
+        self._cookies = self.config.cookies
 
-    # pylint: disable=too-many-arguments
-    def _request(
+        self._limits_reached = TTLCache(config.ttl_cache)
+
+    def _request(  # pylint: disable=too-many-arguments,too-many-branches
         self,
         method,
         path,
         data=None,
+        json=None,
         base_url: URL = None,
         api_version: str = None,
         headers: dict = None,
     ):
+        # pylint: disable=too-many-locals
+        if path in self._limits_reached:
+            raise LimitsException(f"Skipping request - limits reached for {path}")
+
         if not headers:
             headers = {"Content-type": "application/json"}
         base_url = base_url or self._base_url
         version = api_version if api_version else self._api_version
         url: URL = URL(base_url + "/" + version + path)
+        cookies = self._cookies
         if (
             self.config.expires_in
-            and datetime.datetime.utcnow().timestamp() >= self.config.expires_in
+            and datetime.now(timezone.utc).timestamp() >= self.config.expires_in
             or not self.config.access_token
+            and self._auth_token
         ):
             self.config.access_token, expiry = self._auth_token()
             if not self.config.access_token == "no_token":
-                if isinstance(expiry, datetime.datetime):
+                if isinstance(expiry, datetime):
                     self.config.expires_in = expiry.timestamp() - 120
                 else:
                     self.config.expires_in = (
-                        datetime.datetime.utcnow().timestamp() + expiry - 120
+                        datetime.now(timezone.utc).timestamp() + expiry - 120
                     )
-        headers[
-            self.config.auth_header
-        ] = f"{self._auth_token_mode} {self.config.access_token}"
+        if self.config.auth_header:
+            headers[self.config.auth_header] = (
+                f"{self._auth_token_mode} {self.config.access_token}"
+                if self._auth_token_mode
+                else self.config.access_token
+            )
+
+        # Merge extra headers if provided.
+        # If a header value is provided in modulo string format and matches an existing header,
+        # the value will be set to that value.
+        # Example: "Proxy-Authorization": "%(Authorization)s"
+        # This will result in the Authorization value being set for the Proxy-Authorization Extra Header
+        if self.config.extra_headers:
+            extra_headers: Dict[str, str] = self.config.extra_headers
+            extra_headers = {k: (v % headers) for k, v in extra_headers.items()}
+            headers = {**headers, **extra_headers}
 
         opts = {
             "headers": headers,
@@ -163,29 +201,38 @@ class REST:
             # uncanny issues in non-GET request redirecting http->https.
             # It's better to fail early if the URL isn't right.
             "allow_redirects": self.config.allow_redirects,
+            "verify": self._verify,
+            "cookies": cookies,
         }
-        if method.upper() == "GET":
-            opts["params"] = data
-        else:
-            opts["data"] = data
+
+        method_key = "params" if method.upper() == "GET" else "data"
+        opts[method_key] = data
+        if json:
+            opts["json"] = json
 
         total_retries = self._retry if self._retry > 0 else 0
         retry = total_retries
         while retry >= 0:
             try:
-                logger.debug("URL %s, method %s", url, method)
-                logger.debug("Data %s", opts)
                 return self._one_request(method, url, opts, retry)
+            except LimitsException as exc:
+                logger.error(f"Feature limit exceeded for {url}")
+                self._limits_reached.add(path)
+                raise exc
             except RetryException:
                 retry_wait = self._retry_wait * (total_retries - retry + 1)
                 logger.warning(
-                    "sleep %s seconds and retrying %s " "%s more time(s)...",
+                    "sleep %s seconds and retrying %s %s more time(s)...",
                     retry_wait,
                     url,
                     retry,
                 )
                 time.sleep(retry_wait)
                 retry -= 1
+                if retry == 0:
+                    logger.error(f"No more retries left for {url}")
+                    traceback.format_exc()
+        return None
 
     def _one_request(self, method: str, url: URL, opts: dict, retry: int):
         """
@@ -195,25 +242,51 @@ class REST:
         Returns the body json in the 200 status.
         """
         retry_codes = self._retry_codes
-        resp = self._session.request(method, url, **opts)
+        limit_codes = self._limit_codes
         try:
+            resp = self._session.request(method, url, **opts)
             resp.raise_for_status()
+
+            if resp.text != "":
+                try:
+                    return resp.json()
+                except Exception as exc:
+                    logger.debug(traceback.format_exc())
+                    logger.warning(
+                        f"Unexpected error while returning response {resp} in json format - {exc}"
+                    )
+
         except HTTPError as http_error:
             # retry if we hit Rate Limit
             if resp.status_code in retry_codes and retry > 0:
                 raise RetryException() from http_error
+            if resp.status_code in limit_codes:
+                raise LimitsException() from http_error
             if "code" in resp.text:
                 error = resp.json()
                 if "code" in error:
                     raise APIError(error, http_error) from http_error
             else:
                 raise
-        except Exception as err:
-            print(err)
-        if resp.text != "":
-            return resp.json()
+        except requests.ConnectionError as conn:
+            # Trying to solve https://github.com/psf/requests/issues/4664
+            try:
+                return self._session.request(method, url, **opts).json()
+            except Exception as exc:
+                logger.debug(traceback.format_exc())
+                logger.warning(
+                    f"Unexpected error while retrying after a connection error - {exc}"
+                )
+                raise conn
+        except Exception as exc:
+            logger.debug(traceback.format_exc())
+            logger.warning(
+                f"Unexpected error calling [{url}] with method [{method}]: {exc}"
+            )
+
         return None
 
+    @calculate_execution_time(context="GET")
     def get(self, path, data=None):
         """
         GET method
@@ -227,7 +300,8 @@ class REST:
         """
         return self._request("GET", path, data)
 
-    def post(self, path, data=None):
+    @calculate_execution_time(context="POST")
+    def post(self, path, data=None, json=None):
         """
         POST method
 
@@ -238,8 +312,9 @@ class REST:
         Returns:
             Response
         """
-        return self._request("POST", path, data)
+        return self._request("POST", path, data, json)
 
+    @calculate_execution_time(context="PUT")
     def put(self, path, data=None):
         """
         PUT method
@@ -253,6 +328,7 @@ class REST:
         """
         return self._request("PUT", path, data)
 
+    @calculate_execution_time(context="PATCH")
     def patch(self, path, data=None):
         """
         PATCH method
@@ -271,6 +347,7 @@ class REST:
             headers={"Content-type": "application/json-patch+json"},
         )
 
+    @calculate_execution_time(context="DELETE")
     def delete(self, path, data=None):
         """
         DELETE method

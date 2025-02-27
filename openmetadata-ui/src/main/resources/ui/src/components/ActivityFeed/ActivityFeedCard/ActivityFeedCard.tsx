@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,23 +11,23 @@
  *  limitations under the License.
  */
 
-import { Popover } from 'antd';
+import { Popover, Space } from 'antd';
 import classNames from 'classnames';
 import { compare, Operation } from 'fast-json-patch';
-import { observer } from 'mobx-react';
-import React, { FC, useEffect, useState } from 'react';
-import AppState from '../../../AppState';
+import { isUndefined } from 'lodash';
+import React, { FC, useEffect, useRef, useState } from 'react';
 import { ReactionOperation } from '../../../enums/reactions.enum';
+import { AnnouncementDetails } from '../../../generated/api/feed/createThread';
 import { Post } from '../../../generated/entity/feed/thread';
 import { Reaction, ReactionType } from '../../../generated/type/reaction';
-import { useAuth } from '../../../hooks/authHooks';
+import { useApplicationStore } from '../../../hooks/useApplicationStore';
 import {
   getEntityField,
   getEntityFQN,
   getEntityType,
 } from '../../../utils/FeedUtils';
 import UserPopOverCard from '../../common/PopOverCard/UserPopOverCard';
-import ProfilePicture from '../../common/ProfilePicture/ProfilePicture';
+import EditAnnouncementModal from '../../Modals/AnnouncementModal/EditAnnouncementModal';
 import { ActivityFeedCardProp } from './ActivityFeedCard.interface';
 import FeedCardBody from './FeedCardBody/FeedCardBody';
 import FeedCardFooter from './FeedCardFooter/FeedCardFooter';
@@ -50,22 +50,23 @@ const ActivityFeedCard: FC<ActivityFeedCardProp> = ({
   onConfirmation,
   updateThreadHandler,
   onReply,
-  taskDetails,
+  task,
+  announcementDetails,
+  editAnnouncementPermission,
+  showUserAvatar = true,
 }) => {
-  const entityType = getEntityType(entityLink as string);
-  const entityFQN = getEntityFQN(entityLink as string);
-  const entityField = getEntityField(entityLink as string);
-
-  const { isAdminUser } = useAuth();
-  const currentUser = AppState.getCurrentUserDetails();
-
+  const entityType = getEntityType(entityLink ?? '');
+  const entityFQN = getEntityFQN(entityLink ?? '');
+  const entityField = getEntityField(entityLink ?? '');
+  const { currentUser } = useApplicationStore();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [feedDetail, setFeedDetail] = useState<Post>(feed);
 
   const [visible, setVisible] = useState<boolean>(false);
+  const [isEditAnnouncement, setEditAnnouncement] = useState<boolean>(false);
+  const [isEditPost, setEditPost] = useState<boolean>(false);
 
-  const isAuthor = Boolean(
-    feedDetail.from === currentUser?.name || isAdminUser
-  );
+  const isAuthor = feedDetail.from === currentUser?.name;
 
   const onFeedUpdate = (data: Operation[]) => {
     updateThreadHandler(
@@ -111,6 +112,44 @@ const ActivityFeedCard: FC<ActivityFeedCardProp> = ({
     onFeedUpdate(patch);
   };
 
+  const handleAnnouncementUpdate = (
+    title: string,
+    announcement: AnnouncementDetails
+  ) => {
+    const existingAnnouncement = {
+      ...feedDetail,
+      announcement: announcementDetails,
+    };
+
+    const updatedAnnouncement = {
+      ...feedDetail,
+      message: title,
+      announcement,
+    };
+
+    const patch = compare(existingAnnouncement, updatedAnnouncement);
+
+    onFeedUpdate(patch);
+    setEditAnnouncement(false);
+  };
+
+  const handlePostUpdate = (message: string) => {
+    const updatedPost = { ...feedDetail, message };
+
+    const patch = compare(feedDetail, updatedPost);
+
+    onFeedUpdate(patch);
+    setEditPost(false);
+  };
+
+  const handleThreadEdit = () => {
+    if (announcementDetails) {
+      setEditAnnouncement(true);
+    } else {
+      setEditPost(true);
+    }
+  };
+
   const handleVisibleChange = (newVisible: boolean) => setVisible(newVisible);
 
   const onHide = () => setVisible(false);
@@ -120,75 +159,90 @@ const ActivityFeedCard: FC<ActivityFeedCardProp> = ({
   }, [feed]);
 
   return (
-    <div
-      className={classNames(
-        className,
-        'hover:tw-bg-gray-100 tw--mx-2.5 tw-px-2.5 tw--mt-1 tw-py-1 tw-mb-1 tw-rounded',
-        {
-          'tw-bg-gray-100': visible,
-        }
-      )}>
-      <Popover
-        destroyTooltipOnHide
-        align={{ targetOffset: [0, -35] }}
-        content={
-          <PopoverContent
-            isAuthor={isAuthor}
-            isThread={isThread}
-            postId={feedDetail.id}
-            reactions={feedDetail.reactions || []}
-            threadId={threadId}
-            onConfirmation={onConfirmation}
-            onPopoverHide={onHide}
-            onReactionSelect={onReactionSelect}
-            onReply={onReply}
-          />
-        }
-        key="reaction-options-popover"
-        overlayClassName="ant-popover-feed"
-        placement="topRight"
-        trigger="hover"
-        visible={visible}
-        zIndex={9999}
-        onVisibleChange={handleVisibleChange}>
-        <div className="tw-flex tw-mb-1">
-          <UserPopOverCard userName={feedDetail.from}>
-            <span className="tw-cursor-pointer" data-testid="authorAvatar">
-              <ProfilePicture id="" name={feedDetail.from} width="32" />
-            </span>
-          </UserPopOverCard>
-          <div className="tw-flex tw-flex-col">
-            <FeedCardHeader
-              createdBy={feedDetail.from}
-              entityFQN={entityFQN as string}
-              entityField={entityField as string}
-              entityType={entityType as string}
-              feedType={feedType}
-              isEntityFeed={isEntityFeed}
-              taskDetails={taskDetails}
-              timeStamp={feedDetail.postTs}
-            />
-            <FeedCardBody
-              className="tw-pl-2 tw-break-all"
+    <>
+      <div
+        className={classNames(
+          className,
+          'bg-grey-1-hover m--x-sm p-x-sm m--t-xss py-2 m-b-xss rounded-4',
+          {
+            'bg-grey-1-hover': visible,
+          }
+        )}
+        ref={containerRef}>
+        <Popover
+          align={{ targetOffset: [0, -16] }}
+          content={
+            <PopoverContent
+              editAnnouncementPermission={editAnnouncementPermission}
+              isAnnouncement={!isUndefined(announcementDetails)}
+              isAuthor={isAuthor}
               isThread={isThread}
-              message={feedDetail.message}
+              postId={feedDetail.id}
               reactions={feedDetail.reactions || []}
+              threadId={threadId}
+              onConfirmation={onConfirmation}
+              onEdit={handleThreadEdit}
+              onPopoverHide={onHide}
               onReactionSelect={onReactionSelect}
+              onReply={onReply}
             />
-          </div>
-        </div>
-        <FeedCardFooter
-          className="tw-mt-2"
-          isFooterVisible={isFooterVisible}
-          lastReplyTimeStamp={lastReplyTimeStamp}
-          repliedUsers={repliedUsers}
-          replies={replies}
-          threadId={threadId}
-          onThreadSelect={onThreadSelect}
+          }
+          destroyTooltipOnHide={{ keepParent: false }}
+          getPopupContainer={() => containerRef.current || document.body}
+          key="reaction-options-popover"
+          open={visible && !isEditPost}
+          overlayClassName="ant-popover-feed"
+          placement="topRight"
+          trigger="hover"
+          onOpenChange={handleVisibleChange}>
+          <Space align="start" className="w-full" size={0}>
+            {showUserAvatar && <UserPopOverCard userName={feedDetail.from} />}
+            <div>
+              <FeedCardHeader
+                createdBy={feedDetail.from}
+                entityFQN={entityFQN}
+                entityField={entityField ?? ''}
+                entityType={entityType}
+                feedType={feedType}
+                isEntityFeed={isEntityFeed}
+                task={task}
+                timeStamp={feedDetail.postTs}
+              />
+              <FeedCardBody
+                announcementDetails={announcementDetails}
+                isEditPost={isEditPost}
+                isThread={isThread}
+                message={feedDetail.message}
+                reactions={feedDetail.reactions || []}
+                onCancelPostUpdate={() => setEditPost(false)}
+                onPostUpdate={handlePostUpdate}
+                onReactionSelect={onReactionSelect}
+              />
+            </div>
+          </Space>
+          {isFooterVisible && (
+            <FeedCardFooter
+              isFooterVisible={isFooterVisible}
+              lastReplyTimeStamp={lastReplyTimeStamp}
+              repliedUsers={repliedUsers}
+              replies={replies}
+              threadId={threadId}
+              onThreadSelect={onThreadSelect}
+            />
+          )}
+        </Popover>
+      </div>
+      {isEditAnnouncement && announcementDetails && (
+        <EditAnnouncementModal
+          announcement={announcementDetails}
+          announcementTitle={feedDetail.message}
+          open={isEditAnnouncement}
+          onCancel={() => setEditAnnouncement(false)}
+          onConfirm={handleAnnouncementUpdate}
         />
-      </Popover>
-    </div>
+      )}
+    </>
   );
 };
 
-export default observer(ActivityFeedCard);
+export default ActivityFeedCard;

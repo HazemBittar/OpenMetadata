@@ -5,14 +5,14 @@ source:
     config:
       type: Mysql
       username: openmetadata_user
-      password: openmetadata_password
-      database: openmetadata_db
+      authType:
+        password: openmetadata_password
       hostPort: localhost:3306
+      databaseSchema: openmetadata_db
       connectionOptions: {}
       connectionArguments: {}
   sourceConfig:
     config:
-      enableDataProfiler: false
       schemaFilterPattern:
         excludes:
         - mysql.*
@@ -25,4 +25,8 @@ sink:
 workflowConfig:
   openMetadataServerConfig:
     hostPort: http://localhost:8585/api
-    authProvider: no-auth
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "..."
+ingestionPipelineFQN: local_mysql_test.test_metadata
+pipelineRunId: 948eba5d-94ec-4fc5-b233-29038722db16

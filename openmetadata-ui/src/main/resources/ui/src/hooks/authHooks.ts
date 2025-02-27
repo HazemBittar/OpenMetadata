@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,32 +12,13 @@
  */
 
 import { isEmpty } from 'lodash';
-import AppState from '../AppState';
-import { ROUTES } from '../constants/constants';
+import { useApplicationStore } from './useApplicationStore';
 
-export const useAuth = (pathname = '') => {
-  const { authDisabled, userDetails, newUser, authProvider, userPermissions } =
-    AppState;
-  const isAuthenticatedRoute =
-    pathname !== ROUTES.SIGNUP &&
-    pathname !== ROUTES.SIGNIN &&
-    pathname !== ROUTES.CALLBACK;
-  const isTourRoute = pathname === ROUTES.TOUR;
+export const useAuth = () => {
+  const { currentUser, newUser } = useApplicationStore();
 
   return {
-    isSigningIn: authProvider.signingIn,
-    isSignedIn: authDisabled || !isEmpty(userDetails),
-    isSigningUp: !authDisabled && !isEmpty(newUser),
-    isSignedOut:
-      !authDisabled &&
-      !authProvider.signingIn &&
-      isEmpty(userDetails) &&
-      isEmpty(newUser),
-    isAuthenticatedRoute,
-    isAuthDisabled: authDisabled,
-    isAdminUser: userDetails?.isAdmin,
-    isFirstTimeUser: !isEmpty(userDetails) && !isEmpty(newUser),
-    isTourRoute,
-    userPermissions,
+    isAdminUser: currentUser?.isAdmin,
+    isFirstTimeUser: !isEmpty(currentUser) && !isEmpty(newUser),
   };
 };

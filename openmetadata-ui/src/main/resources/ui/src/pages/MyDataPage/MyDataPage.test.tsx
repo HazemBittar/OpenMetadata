@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2023 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -10,532 +10,294 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+import {
+  mockActiveAnnouncementData,
+  mockCustomizePageClassBase,
+  mockDocumentData,
+  mockPersonaName,
+  mockUserData,
+} from '../../mocks/MyDataPage.mock';
+import { getDocumentByFQN } from '../../rest/DocStoreAPI';
+import { getActiveAnnouncement } from '../../rest/feedsAPI';
+import MyDataPage from './MyDataPage.component';
 
-import { findByText, queryByText, render } from '@testing-library/react';
-import React, { ReactNode } from 'react';
-import { getAllDashboards } from '../../axiosAPIs/dashboardAPI';
-import { fetchSandboxConfig } from '../../axiosAPIs/miscAPI';
-import { getAllPipelines } from '../../axiosAPIs/pipelineAPI';
-import { getAllTables } from '../../axiosAPIs/tableAPI';
-import { getTeams } from '../../axiosAPIs/teamsAPI';
-import { getAllTopics } from '../../axiosAPIs/topicsAPI';
-import { getUsers } from '../../axiosAPIs/userAPI';
-import { getAllServices } from '../../utils/ServiceUtils';
-import MyDataPageComponent from './MyDataPage.component';
+const mockLocalStorage = (() => {
+  let store: Record<string, string> = {};
 
-const mockAuth = {
-  isAuthDisabled: true,
-};
+  return {
+    getItem(key: string) {
+      return store[key] || '';
+    },
+    setItem(key: string, value: string) {
+      store[key] = value.toString();
+    },
+    clear() {
+      store = {};
+    },
+  };
+})();
 
-const mockErrors = {
-  sandboxMode: 'SandboxModeError',
-};
-
-jest.mock('../../components/MyData/MyData.component', () => {
-  return jest
-    .fn()
-    .mockReturnValue(<p data-testid="my-data-component">Mydata component</p>);
+Object.defineProperty(window, 'localStorage', {
+  value: mockLocalStorage,
 });
 
-jest.mock('../../axiosAPIs/miscAPI', () => ({
-  searchData: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        aggregations: {
-          'sterms#Service': {
-            buckets: [],
-          },
-        },
-        hits: [],
-      },
-    })
-  ),
-  fetchSandboxConfig: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        sandboxModeEnabled: false,
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/tableAPI', () => ({
-  getAllTables: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-        paging: {
-          total: 3,
-        },
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/topicsAPI', () => ({
-  getAllTopics: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-        paging: {
-          total: 3,
-        },
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/dashboardAPI', () => ({
-  getAllDashboards: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-        paging: {
-          total: 3,
-        },
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/pipelineAPI', () => ({
-  getAllPipelines: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-        paging: {
-          total: 3,
-        },
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/mlModelAPI', () => ({
-  getAllMlModal: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/userAPI', () => ({
-  getUsers: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/teamsAPI', () => ({
-  getTeams: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-      },
-    })
-  ),
-}));
-
-jest.mock('../../axiosAPIs/feedsAPI', () => ({
-  getFeedsWithFilter: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      data: {
-        data: [],
-      },
-    })
-  ),
-}));
-
-jest.mock('../../utils/ServiceUtils', () => ({
-  getAllServices: jest.fn().mockImplementation(() => Promise.resolve(['test'])),
-  getEntityCountByService: jest.fn().mockReturnValue({
-    tableCount: 0,
-    topicCount: 0,
-    dashboardCount: 0,
-    pipelineCount: 0,
-  }),
-}));
-
-jest.mock('../../utils/CommonUtils', () => ({
-  isSandboxOMD: jest.fn().mockReturnValue(true),
-}));
-
-jest.mock('../../hooks/authHooks', () => ({
-  useAuth: jest.fn(() => mockAuth),
-}));
-
-jest.mock('react-router-dom', () => ({
-  useLocation: jest.fn().mockReturnValue({
-    pathname: 'pathname',
-  }),
-}));
-
-jest.mock('../../utils/APIUtils', () => ({
-  formatDataResponse: jest.fn(),
-}));
-
-jest.mock('../../components/containers/PageContainerV1', () => {
+jest.mock(
+  '../../components/ActivityFeed/ActivityFeedProvider/ActivityFeedProvider',
+  () => {
+    return jest
+      .fn()
+      .mockImplementation(({ children }) => (
+        <div data-testid="activity-feed-provider">{children}</div>
+      ));
+  }
+);
+jest.mock('../../components/common/Loader/Loader', () => {
+  return jest.fn().mockImplementation(() => <div>Loader</div>);
+});
+jest.mock('../../utils/CustomizeMyDataPageClassBase', () => {
+  return mockCustomizePageClassBase;
+});
+jest.mock('../../components/PageLayoutV1/PageLayoutV1', () => {
   return jest
     .fn()
-    .mockImplementation(({ children }: { children: ReactNode }) => (
-      <div data-testid="PageContainerV1">{children}</div>
+    .mockImplementation(({ children }) => (
+      <div data-testid="page-layout-v1">{children}</div>
     ));
 });
+jest.mock(
+  '../../components/MyData/WelcomeScreen/WelcomeScreen.component',
+  () => {
+    return jest
+      .fn()
+      .mockImplementation(({ onClose }) => (
+        <div onClick={onClose}>WelcomeScreen</div>
+      ));
+  }
+);
 
-jest.mock('../../components/MyData/MyData.component', () => {
-  return jest.fn().mockImplementation(() => <p>MyData.component</p>);
+let mockSelectedPersona: Record<string, string> = {
+  fullyQualifiedName: mockPersonaName,
+};
+
+jest.mock('../../hooks/useApplicationStore', () => ({
+  useApplicationStore: jest.fn().mockImplementation(() => ({
+    currentUser: mockUserData,
+    selectedPersona: mockSelectedPersona,
+  })),
+}));
+
+jest.mock('../../hooks/useGridLayoutDirection', () => ({
+  useGridLayoutDirection: jest.fn().mockImplementation(() => 'ltr'),
+}));
+
+jest.mock('../../rest/DocStoreAPI', () => ({
+  getDocumentByFQN: jest
+    .fn()
+    .mockImplementation(() => Promise.resolve(mockDocumentData)),
+}));
+jest.mock('../../rest/feedsAPI', () => ({
+  getActiveAnnouncement: jest
+    .fn()
+    .mockImplementation(() => Promise.resolve(mockActiveAnnouncementData)),
+}));
+jest.mock('../../rest/userAPI', () => ({
+  getUserById: jest
+    .fn()
+    .mockImplementation(() => Promise.resolve(mockUserData)),
+}));
+jest.mock('../../hooks/useCustomLocation/useCustomLocation', () => {
+  return jest.fn().mockImplementation(() => ({ pathname: '' }));
+});
+jest.mock('../../rest/searchAPI', () => {
+  return {
+    searchQuery: jest
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve({ hits: { hits: [], total: { value: 0 } } })
+      ),
+  };
+});
+jest.mock('react-grid-layout', () => ({
+  ...jest.requireActual('react-grid-layout'),
+  WidthProvider: jest
+    .fn()
+    .mockImplementation(() =>
+      jest
+        .fn()
+        .mockImplementation(({ children }) => (
+          <div data-testid="react-grid-layout">{children}</div>
+        ))
+    ),
+  __esModule: true,
+  default: '',
+}));
+
+jest.mock('../../hoc/LimitWrapper', () => {
+  return jest
+    .fn()
+    .mockImplementation(({ children }) => <>LimitWrapper{children}</>);
 });
 
-jest.mock('../../components/GithubStarButton/GithubStarButton', () => {
-  return jest.fn().mockImplementation(() => <p>GithubStarButton.component</p>);
+jest.mock('../DataInsightPage/DataInsightProvider', async () => {
+  return jest.fn().mockImplementation(({ children }) => <>{children}</>);
 });
 
-describe('Test MyData page component', () => {
-  it('Component should render', async () => {
-    const { container } = render(<MyDataPageComponent />);
-    const myData = await findByText(container, /MyData.component/i);
+jest.mock('../../hooks/useWelcomeStore', () => ({
+  useWelcomeStore: jest.fn().mockReturnValue({
+    isWelcomeVisible: true,
+  }),
+}));
 
-    const githubStarButton = await queryByText(
-      container,
-      /GithubStarButton.component/i
-    );
+jest.mock('../DataInsightPage/DataInsightProvider', () => {
+  return {
+    __esModule: true,
+    default: jest.fn().mockImplementation(({ children }) => <>{children}</>),
+    useDataInsightProvider: jest.fn().mockReturnValue({
+      kpi: {
+        isLoading: false,
+        data: [],
+      },
+    }),
+  };
+});
 
-    expect(myData).toBeInTheDocument();
-    expect(githubStarButton).not.toBeInTheDocument();
+describe('MyDataPage component', () => {
+  beforeEach(() => {
+    localStorage.setItem('loggedInUsers', mockUserData.name);
   });
 
-  it('Component should render in sandbox mode', async () => {
-    (fetchSandboxConfig as jest.Mock).mockImplementationOnce(() =>
+  it('MyDataPage should only display WelcomeScreen when user logs in for the first time', async () => {
+    // Simulate no user is logged in condition
+    localStorage.clear();
+    await act(async () => {
+      render(<MyDataPage />);
+    });
+
+    expect(screen.getByText('WelcomeScreen')).toBeInTheDocument();
+    expect(screen.queryByTestId('activity-feed-provider')).toBeNull();
+  });
+
+  it('MyDataPage should display the main content after the WelcomeScreen is closed', async () => {
+    // Simulate no user is logged in condition
+    localStorage.clear();
+    await act(async () => {
+      render(<MyDataPage />);
+    });
+    const welcomeScreen = screen.getByText('WelcomeScreen');
+
+    expect(welcomeScreen).toBeInTheDocument();
+    expect(screen.queryByTestId('activity-feed-provider')).toBeNull();
+
+    await act(async () => userEvent.click(welcomeScreen));
+
+    expect(screen.queryByText('WelcomeScreen')).toBeNull();
+    expect(screen.getByTestId('activity-feed-provider')).toBeInTheDocument();
+    expect(screen.getByTestId('react-grid-layout')).toBeInTheDocument();
+  });
+
+  it('MyDataPage should display loader initially while loading data', async () => {
+    await act(async () => {
+      render(<MyDataPage />);
+
+      expect(screen.getByText('Loader')).toBeInTheDocument();
+      expect(screen.queryByTestId('react-grid-layout')).toBeNull();
+    });
+
+    expect(screen.queryByText('WelcomeScreen')).toBeNull();
+
+    expect(
+      await screen.findByTestId('activity-feed-provider')
+    ).toBeInTheDocument();
+  });
+
+  it('MyDataPage should display all the widgets in the config and the announcements widget if there are announcements', async () => {
+    await act(async () => {
+      render(<MyDataPage />);
+    });
+
+    expect(screen.getByText('KnowledgePanel.ActivityFeed')).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.Following')).toBeInTheDocument();
+    expect(
+      screen.getByText('KnowledgePanel.RecentlyViewed')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('KnowledgePanel.Announcements')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('KnowledgePanel.KPI')).toBeNull();
+    expect(screen.queryByText('KnowledgePanel.TotalAssets')).toBeNull();
+    expect(screen.queryByText('KnowledgePanel.MyData')).toBeNull();
+  });
+
+  it('MyDataPage should not render announcement widget if there are no announcements', async () => {
+    (getActiveAnnouncement as jest.Mock).mockImplementationOnce(() =>
       Promise.resolve({
-        data: {
-          sandboxModeEnabled: true,
-        },
+        ...mockActiveAnnouncementData,
+        data: [],
       })
     );
+    await act(async () => {
+      render(<MyDataPage />);
+    });
 
-    const { container } = render(<MyDataPageComponent />);
-    const myData = await findByText(container, /MyData.component/i);
-
-    const githubStarButton = await findByText(
-      container,
-      /GithubStarButton.component/i
-    );
-
-    expect(myData).toBeInTheDocument();
-    expect(githubStarButton).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.ActivityFeed')).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.Following')).toBeInTheDocument();
+    expect(
+      screen.getByText('KnowledgePanel.RecentlyViewed')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('KnowledgePanel.Announcements')).toBeNull();
+    expect(screen.queryByText('KnowledgePanel.KPI')).toBeNull();
+    expect(screen.queryByText('KnowledgePanel.TotalAssets')).toBeNull();
+    expect(screen.queryByText('KnowledgePanel.MyData')).toBeNull();
   });
 
-  describe('render Sad Paths', () => {
-    it('show error message on failing of config/sandbox api', async () => {
-      (fetchSandboxConfig as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: mockErrors.sandboxMode } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      const githubStarButton = await queryByText(
-        container,
-        /GithubStarButton.component/i
-      );
-
-      expect(myData).toBeInTheDocument();
-      expect(githubStarButton).not.toBeInTheDocument();
+  it('MyDataPage should render default widgets when getDocumentByFQN API fails', async () => {
+    (getDocumentByFQN as jest.Mock).mockImplementationOnce(() =>
+      Promise.reject(new Error('API failure'))
+    );
+    await act(async () => {
+      render(<MyDataPage />);
     });
 
-    it('show error message on no data from config/sandbox api', async () => {
-      (fetchSandboxConfig as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({})
-      );
+    expect(screen.getByText('KnowledgePanel.ActivityFeed')).toBeInTheDocument();
+    expect(
+      screen.getByText('KnowledgePanel.RecentlyViewed')
+    ).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.Following')).toBeInTheDocument();
+    expect(
+      screen.getByText('KnowledgePanel.Announcements')
+    ).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.KPI')).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.TotalAssets')).toBeInTheDocument();
+    expect(screen.getByText('KnowledgePanel.MyData')).toBeInTheDocument();
+  });
 
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      const githubStarButton = await queryByText(
-        container,
-        /GithubStarButton.component/i
-      );
-
-      expect(myData).toBeInTheDocument();
-      expect(githubStarButton).not.toBeInTheDocument();
+  it('MyDataPage should render default widgets when there is no selected persona', async () => {
+    mockSelectedPersona = {};
+    await act(async () => {
+      render(<MyDataPage />);
     });
 
-    it('should render component if table count api fails', async () => {
-      (getAllTables as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if table count api has no data', async () => {
-      (getAllTables as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({})
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if table count api has no paging', async () => {
-      (getAllTables as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if topic count api fails', async () => {
-      (getAllTopics as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if topic count api has no data', async () => {
-      (getAllTopics as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({})
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if topic count api has no paging', async () => {
-      (getAllTopics as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if dashboard count api fails', async () => {
-      (getAllDashboards as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if dashboard count api has no data', async () => {
-      (getAllDashboards as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({})
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if dashboard count api has no paging', async () => {
-      (getAllDashboards as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if pipeline count api fails', async () => {
-      (getAllPipelines as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if pipeline count api has no data', async () => {
-      (getAllPipelines as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({})
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if pipeline count api has no paging', async () => {
-      (getAllPipelines as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if service util fails', async () => {
-      (getAllServices as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if service util has no data', async () => {
-      (getAllServices as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve([{}])
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if service util has no paging', async () => {
-      (getAllServices as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve([
-          {
-            data: {
-              data: [],
-            },
-          },
-        ])
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if user count api fails', async () => {
-      (getUsers as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if user count api has no data', async () => {
-      (getUsers as jest.Mock).mockImplementationOnce(() => Promise.resolve({}));
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if user count api has no paging', async () => {
-      (getUsers as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if team count api fails', async () => {
-      (getTeams as jest.Mock).mockImplementationOnce(() =>
-        Promise.reject({
-          response: { data: { message: 'Error!' } },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if team count api has no data', async () => {
-      (getTeams as jest.Mock).mockImplementationOnce(() => Promise.resolve({}));
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
-
-    it('should render component if team count api has no paging', async () => {
-      (getTeams as jest.Mock).mockImplementationOnce(() =>
-        Promise.resolve({
-          data: {
-            data: [],
-          },
-        })
-      );
-
-      const { container } = render(<MyDataPageComponent />);
-      const myData = await findByText(container, /MyData.component/i);
-
-      expect(myData).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText('KnowledgePanel.ActivityFeed')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('KnowledgePanel.RecentlyViewed')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('KnowledgePanel.Following')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('KnowledgePanel.Announcements')
+    ).toBeInTheDocument();
+    expect(await screen.findByText('KnowledgePanel.KPI')).toBeInTheDocument();
+    expect(
+      await screen.findByText('KnowledgePanel.TotalAssets')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('KnowledgePanel.MyData')
+    ).toBeInTheDocument();
   });
 });

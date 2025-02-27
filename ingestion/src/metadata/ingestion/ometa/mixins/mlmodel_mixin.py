@@ -13,6 +13,7 @@ Mixin class containing Lineage specific methods
 
 To be used by OpenMetadata class
 """
+import traceback
 from typing import Any, Dict, Optional
 
 from metadata.generated.schema.api.data.createMlModel import CreateMlModelRequest
@@ -37,10 +38,10 @@ from metadata.generated.schema.metadataIngestion.workflow import (
 )
 from metadata.generated.schema.metadataIngestion.workflow import SourceConfig
 from metadata.generated.schema.type.entityLineage import EntitiesEdge
-from metadata.generated.schema.type.entityReference import EntityReference
 from metadata.ingestion.ometa.client import REST
 from metadata.ingestion.ometa.mixins.lineage_mixin import OMetaLineageMixin
-from metadata.ingestion.ometa.utils import format_name, ometa_logger
+from metadata.ingestion.ometa.utils import format_name
+from metadata.utils.logger import ometa_logger
 
 logger = ometa_logger()
 
@@ -54,11 +55,14 @@ class OMetaMlModelMixin(OMetaLineageMixin):
 
     client: REST
 
-    def add_mlmodel_lineage(self, model: MlModel) -> Dict[str, Any]:
+    def add_mlmodel_lineage(
+        self, model: MlModel, description: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Iterates over MlModel's Feature Sources and
         add the lineage information.
         :param model: MlModel containing EntityReferences
+        :param description: Lineage description
         :return: List of added lineage information
         """
 
@@ -76,17 +80,17 @@ class OMetaMlModelMixin(OMetaLineageMixin):
         for entity_ref in refs:
             self.add_lineage(
                 AddLineageRequest(
-                    description="MlModel uses FeatureSource",
                     edge=EntitiesEdge(
-                        fromEntity=self.get_entity_reference(
+                        description=description,
+                        fromEntity=entity_ref,
+                        toEntity=self.get_entity_reference(
                             entity=MlModel, fqn=model.fullyQualifiedName
                         ),
-                        toEntity=entity_ref,
                     ),
                 )
             )
 
-        mlmodel_lineage = self.get_lineage_by_id(MlModel, str(model.id.__root__))
+        mlmodel_lineage = self.get_lineage_by_id(MlModel, str(model.id.root))
 
         return mlmodel_lineage
 
@@ -112,13 +116,14 @@ class OMetaMlModelMixin(OMetaLineageMixin):
             from sklearn.base import BaseEstimator
 
             # pylint: enable=import-outside-toplevel
-        except ModuleNotFoundError as exc:
+        except ModuleNotFoundError as err:
+            logger.debug(traceback.format_exc())
             logger.error(
                 "Cannot import BaseEstimator, please install sklearn plugin: "
                 "pip install openmetadata-ingestion[sklearn], %s",
-                exc,
+                err,
             )
-            raise exc
+            raise err
 
         if not isinstance(model, BaseEstimator):
             raise ValueError("Input model is not an instance of sklearn BaseEstimator")
@@ -146,9 +151,9 @@ class OMetaMlModelMixin(OMetaLineageMixin):
             mlHyperParameters=[
                 MlHyperParameter(
                     name=key,
-                    value=value,
+                    value=str(value),
                 )
                 for key, value in model.get_params().items()
             ],
-            service=EntityReference(id=service.id, type="mlmodelService"),
+            service=service.fullyQualifiedName,
         )

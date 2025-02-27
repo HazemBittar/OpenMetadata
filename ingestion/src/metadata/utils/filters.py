@@ -27,19 +27,20 @@ class InvalidPatternException(Exception):
     """
 
 
-def validate_regex(regex_list: List[str]) -> None:
+def validate_regex(regex_list: Optional[List[str]]) -> None:
     """
     Check that the given include/exclude regexes
     are well formatted
     """
-    for regex in regex_list:
+    for regex in regex_list or []:
         try:
             re.compile(regex)
-        except re.error:
-            raise InvalidPatternException(f"Invalid regex {regex}.")
+        except re.error as err:
+            msg = f"Invalid regex [{regex}]: {err}"
+            raise InvalidPatternException(msg) from err
 
 
-def _filter(filter_pattern: Optional[FilterPattern], name: str) -> bool:
+def _filter(filter_pattern: Optional[FilterPattern], name: Optional[str]) -> bool:
     """
     Return True if the name needs to be filtered, False otherwise
 
@@ -53,24 +54,36 @@ def _filter(filter_pattern: Optional[FilterPattern], name: str) -> bool:
         # No filter pattern, nothing to filter
         return False
 
-    if filter_pattern.includes:
-        validate_regex(filter_pattern.includes)
+    if filter_pattern and not name:
+        # Filter pattern is present but not the name so we'll filter it out
+        return True
+
+    validate_regex(filter_pattern.includes)
+    validate_regex(filter_pattern.excludes)
+
+    if filter_pattern.includes and filter_pattern.excludes:
         return not any(
-            [
-                name
-                for regex in filter_pattern.includes
-                if (re.match(regex, name, re.IGNORECASE))
-            ]
+            name
+            for regex in filter_pattern.includes
+            if (re.match(regex, name, re.IGNORECASE))
+        ) or any(
+            name
+            for regex in filter_pattern.excludes
+            if (re.match(regex, name, re.IGNORECASE))
+        )
+
+    if filter_pattern.includes:
+        return not any(
+            name
+            for regex in filter_pattern.includes
+            if (re.match(regex, name, re.IGNORECASE))
         )
 
     if filter_pattern.excludes:
-        validate_regex(filter_pattern.excludes)
         return any(
-            [
-                name
-                for regex in filter_pattern.excludes
-                if (re.match(regex, name, re.IGNORECASE))
-            ]
+            name
+            for regex in filter_pattern.excludes
+            if (re.match(regex, name, re.IGNORECASE))
         )
 
     return False
@@ -85,7 +98,7 @@ def filter_by_schema(
     Include takes precedence over exclude
 
     :param schema_filter_pattern: Model defining schema filtering logic
-    :param schema_name: table schema name
+    :param schema fqn: table schema fqn
     :return: True for filtering, False otherwise
     """
     return _filter(schema_filter_pattern, schema_name)
@@ -100,7 +113,7 @@ def filter_by_table(
     Include takes precedence over exclude
 
     :param table_filter_pattern: Model defining schema filtering logic
-    :param table_name: table name
+    :param table_fqn: table fqn
     :return: True for filtering, False otherwise
     """
     return _filter(table_filter_pattern, table_name)
@@ -115,13 +128,15 @@ def filter_by_chart(
     Include takes precedence over exclude
 
     :param chart_filter_pattern: Model defining chart filtering logic
-    :param chart_name: table chart name
+    :param chart_name: chart name
     :return: True for filtering, False otherwise
     """
     return _filter(chart_filter_pattern, chart_name)
 
 
-def filter_by_topic(topic_filter_pattern: Optional[FilterPattern], topic: str) -> bool:
+def filter_by_topic(
+    topic_filter_pattern: Optional[FilterPattern], topic_name: str
+) -> bool:
     """
     Return True if the topic needs to be filtered, False otherwise
 
@@ -131,7 +146,7 @@ def filter_by_topic(topic_filter_pattern: Optional[FilterPattern], topic: str) -
     :param topic_name: topic name
     :return: True for filtering, False otherwise
     """
-    return _filter(topic_filter_pattern, topic)
+    return _filter(topic_filter_pattern, topic_name)
 
 
 def filter_by_dashboard(
@@ -143,7 +158,7 @@ def filter_by_dashboard(
     Include takes precedence over exclude
 
     :param dashboard_filter_pattern: Model defining dashboard filtering logic
-    :param dashboard_name: table dashboard name
+    :param dashboard_name: dashboard name
     :return: True for filtering, False otherwise
     """
     return _filter(dashboard_filter_pattern, dashboard_name)
@@ -171,7 +186,7 @@ def filter_by_database(
     Include takes precedence over exclude
 
     :param database_filter_pattern: Model defining database filtering logic
-    :param database_name: table database name
+    :param database_name: database name
     :return: True for filtering, False otherwise
     """
     return _filter(database_filter_pattern, database_name)
@@ -190,3 +205,93 @@ def filter_by_pipeline(
     :return: True for filtering, False otherwise
     """
     return _filter(pipeline_filter_pattern, pipeline_name)
+
+
+def filter_by_mlmodel(
+    mlmodel_filter_pattern: Optional[FilterPattern], mlmodel_name: str
+) -> bool:
+    """
+    Return True if the mlmodel needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param mlmodel_filter_pattern: Model defining the mlmodel filtering logic
+    :param mlmodel_name: mlmodel name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(mlmodel_filter_pattern, mlmodel_name)
+
+
+def filter_by_container(
+    container_filter_pattern: Optional[FilterPattern], container_name: str
+) -> bool:
+    """
+    Return True if the container needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param container_filter_pattern: Container defining the container filtering logic
+    :param container_name: container name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(container_filter_pattern, container_name)
+
+
+def filter_by_datamodel(
+    datamodel_filter_pattern: Optional[FilterPattern], datamodel_name: str
+) -> bool:
+    """
+    Return True if the models needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param datamodel_filter_pattern: Model defining data model filtering logic
+    :param datamodel_name: data model name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(datamodel_filter_pattern, datamodel_name)
+
+
+def filter_by_project(
+    project_filter_pattern: Optional[FilterPattern], project_name: str
+) -> bool:
+    """
+    Return True if the project needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param project_filter_pattern: Model defining project filtering logic
+    :param project_name: project name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(project_filter_pattern, project_name)
+
+
+def filter_by_search_index(
+    search_index_filter_pattern: Optional[FilterPattern], search_index_name: str
+) -> bool:
+    """
+    Return True if the models needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param search_index_filter_pattern: Model defining search index filtering logic
+    :param search_index_name: search index name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(search_index_filter_pattern, search_index_name)
+
+
+def filter_by_classification(
+    classification_pattern: Optional[FilterPattern], classification_name: str
+) -> bool:
+    """
+    Return True if the models needs to be filtered, False otherwise
+
+    Include takes precedence over exclude
+
+    :param search_index_filter_pattern: Model defining search index filtering logic
+    :param search_index_name: search index name
+    :return: True for filtering, False otherwise
+    """
+    return _filter(classification_pattern, classification_name)

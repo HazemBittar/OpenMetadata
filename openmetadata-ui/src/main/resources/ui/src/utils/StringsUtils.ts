@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 import { AxiosError } from 'axios';
 import parse from 'html-react-parser';
-import { isString } from 'lodash';
+import { get, isString } from 'lodash';
 
 export const stringToSlug = (dataString: string, slugString = '') => {
   return dataString.toLowerCase().replace(/ /g, slugString);
@@ -112,10 +112,14 @@ export const getErrorText = (
   if (isString(value)) {
     return value;
   } else if (value) {
-    errorText = value.response?.data?.message;
+    errorText = get(value, 'response.data.message', '');
     if (!errorText) {
       // if error text is undefined or null or empty, try responseMessage in data
-      errorText = value.response?.data?.responseMessage;
+      errorText = get(value, 'response.data.responseMessage', '');
+    }
+    if (!errorText) {
+      errorText = get(value, 'response.data', '');
+      errorText = typeof errorText === 'string' ? errorText : null;
     }
   }
 
@@ -128,8 +132,29 @@ export const getErrorText = (
  * @param fqn - Value to be encoded
  * @returns - Encoded text string as a valid component of a Uniform Resource Identifier (URI).
  */
-export const getEncodedFqn = (fqn: string) => {
-  return encodeURIComponent(fqn);
+export const getEncodedFqn = (fqn: string, spaceAsPlus = false) => {
+  let uri = encodeURIComponent(fqn);
+
+  if (spaceAsPlus) {
+    uri = uri.replaceAll('%20', '+');
+  }
+
+  return uri;
+};
+
+/**
+ *
+ * @param fqn - Value to be encoded
+ * @returns - Decode text string as a valid component of a Uniform Resource Identifier (URI).
+ */
+export const getDecodedFqn = (fqn: string, plusAsSpace = false) => {
+  let uri = decodeURIComponent(fqn);
+
+  if (plusAsSpace) {
+    uri = uri.replaceAll('+', ' ');
+  }
+
+  return uri;
 };
 
 /**
@@ -139,4 +164,165 @@ export const getEncodedFqn = (fqn: string) => {
  */
 export const isExternalUrl = (url = '') => {
   return /^https?:\/\//.test(url);
+};
+
+/**
+ *
+ * @param a compare value one
+ * @param b compare value two
+ * @returns sorted array (A-Z) which will have custom value at last
+ */
+export const customServiceComparator = (a: string, b: string): number => {
+  if (a.includes('Custom') || b.includes('Custom')) {
+    return a.includes('Custom') ? 1 : -1;
+  } else {
+    return a.localeCompare(b);
+  }
+};
+
+/**
+ *
+ * @param fqn - Value to be encoded
+ * @returns - String text replacing + to valid component of a Uniform Resource Identifier (URI).
+ */
+export const replacePlus = (fqn: string) => fqn.replaceAll('+', ' ');
+
+export const ES_RESERVED_CHARACTERS: Record<string, string> = {
+  '+': '\\+',
+  '-': '\\-',
+  '=': '\\=',
+  '&': '\\&',
+  '&&': '\\&&',
+  '||': '\\||',
+  '>': '\\>',
+  '<': '\\<',
+  '!': '\\!',
+  '(': '\\(',
+  ')': '\\)',
+  '{': '\\{',
+  '}': '\\}',
+  '[': '\\[',
+  ']': '\\]',
+  '^': '\\^',
+  '"': '\\"',
+  '~': '\\~',
+  '*': '\\*',
+  '?': '\\?',
+  ':': '\\:',
+  '\\': '\\\\',
+  '/': '\\/',
+};
+
+export const escapeESReservedCharacters = (text?: string) => {
+  const reUnescapedHtml = /[\\[\]#+=&|><!(){}^"~*?:/-]/g;
+  const reHasUnescapedHtml = RegExp(reUnescapedHtml.source);
+
+  const getReplacedChar = (char: string) => {
+    return ES_RESERVED_CHARACTERS[char] ?? char;
+  };
+
+  return text && reHasUnescapedHtml.test(text)
+    ? text.replace(reUnescapedHtml, getReplacedChar)
+    : text ?? '';
+};
+
+/**
+ * @description Format JSON string to a readable format
+ * if the JSON string is invalid, return the original JSON string
+ * @param jsonString - JSON string to format
+ * @param indent - Indentation string
+ * @returns Formatted JSON string
+ * @example formatJsonString('{"key1": "value1", "key2": "value2"}') => '[key1]: value1\n[key2]: value2\n'
+ */
+export const formatJsonString = (jsonString: string, indent = '') => {
+  try {
+    let formattedJson = '';
+    const jsonObj = JSON.parse(jsonString);
+
+    for (const [key, value] of Object.entries(jsonObj)) {
+      if (typeof value === 'object' && value !== null) {
+        formattedJson += `${indent}[${key}]:\n`;
+        // Recursively format nested objects
+        formattedJson += formatJsonString(JSON.stringify(value), indent + '  ');
+      } else {
+        formattedJson += `${indent}[${key}]: ${value}\n`;
+      }
+    }
+
+    return formattedJson;
+  } catch (error) {
+    // Return the original JSON string if parsing fails
+    return jsonString;
+  }
+};
+
+export const replaceCallback = (character: string) => {
+  // Generate a random number between 0 and 15
+  const randomNumber = (Math.random() * 16) | 0;
+
+  // If the character in the UUID template is 'x', use the random number.
+  // Otherwise, use the random number ANDed with 0x3 (which gives a number between 0 and 3) ORed with 0x8
+  // (which sets the high bit, ensuring a number between 8 and 11).
+  const uuidCharacter =
+    character === 'x' ? randomNumber : (randomNumber & 0x3) | 0x8;
+
+  // Convert the number to a hexadecimal string and return it
+  return uuidCharacter.toString(16);
+};
+
+/**
+ * @description Generate a UUID (Universally Unique Identifier)
+ * @returns A UUID string
+ */
+export const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+    /[xy]/g,
+    replaceCallback
+  );
+};
+
+type JSONRecord = Record<string, string | number | boolean>;
+type HeaderMap = {
+  field: string;
+  title: string;
+};
+
+export const jsonToCSV = <T extends JSONRecord>(
+  jsonArray: T[],
+  headers: HeaderMap[]
+): string => {
+  if (!Array.isArray(jsonArray) || jsonArray.length === 0) {
+    return '';
+  }
+
+  // Check if headers array is empty
+  if (headers.length === 0) {
+    return '';
+  }
+
+  // Create the header row from headers mapping
+  const headerRow = headers.map((h) => h.title);
+  const csvRows: string[] = [headerRow.join(',')];
+
+  // Convert each JSON object to a CSV row
+  jsonArray.forEach((obj) => {
+    const row = headers
+      .map((header) => {
+        const value = obj[header.field];
+        if (!value) {
+          return '""';
+        }
+        const escaped =
+          typeof value === 'string'
+            ? value.replace(/"/g, '\\"')
+            : value.toString(); // handle quotes in content
+
+        return `"${escaped}"`; // wrap each field in quotes
+      })
+      .join(',');
+    csvRows.push(row);
+  });
+
+  // Combine all CSV rows and add newline character to form final CSV string
+  return csvRows.join('\n');
 };

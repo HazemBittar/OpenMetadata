@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,7 +11,7 @@
  *  limitations under the License.
  */
 
-import { findByTestId, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import EntityDeleteModal from './EntityDeleteModal';
@@ -25,75 +25,56 @@ const mockProp = {
   entityType: 'table',
   onCancel,
   onConfirm,
+  visible: false,
 };
+
+jest.mock('react-i18next', () => ({
+  Trans: jest.fn().mockImplementation(() => <div>Trans</div>),
+}));
 
 describe('Test EntityDelete Modal Component', () => {
   it('Should render component', async () => {
-    const { container } = render(<EntityDeleteModal {...mockProp} />, {
-      wrapper: MemoryRouter,
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} visible />);
     });
 
     expect(
-      await findByTestId(container, 'delete-confirmation-modal')
+      await screen.findByTestId('delete-confirmation-modal')
     ).toBeInTheDocument();
 
-    expect(await findByTestId(container, 'modal-header')).toBeInTheDocument();
+    expect(await screen.findByTestId('modal-header')).toBeInTheDocument();
 
-    expect(await findByTestId(container, 'body-text')).toBeInTheDocument();
+    expect(await screen.findByTestId('body-text')).toBeInTheDocument();
 
     expect(
-      await findByTestId(container, 'confirmation-text-input')
+      await screen.findByTestId('confirmation-text-input')
     ).toBeInTheDocument();
   });
 
   it('Should initially render confirm button as disable', async () => {
-    const { container } = render(<EntityDeleteModal {...mockProp} />, {
-      wrapper: MemoryRouter,
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} visible />, {
+        wrapper: MemoryRouter,
+      });
     });
 
-    const confirmButton = await findByTestId(container, 'confirm-button');
+    const confirmButton = await screen.findByTestId('confirm-button');
 
     expect(confirmButton).toBeDisabled();
-  });
-
-  it('Should render discard button and input box as disable if loading state is wating', async () => {
-    const { container } = render(
-      <EntityDeleteModal {...mockProp} loadingState="waiting" />,
-      {
-        wrapper: MemoryRouter,
-      }
-    );
-
-    const discardButton = await findByTestId(container, 'discard-button');
-    const inputBox = await findByTestId(container, 'confirmation-text-input');
-
-    expect(discardButton).toBeDisabled();
-    expect(inputBox).toBeDisabled();
-  });
-
-  it('Should show loading button if loading state is waiting', async () => {
-    const { container } = render(
-      <EntityDeleteModal {...mockProp} loadingState="waiting" />,
-      {
-        wrapper: MemoryRouter,
-      }
-    );
-
-    const loadingButton = await findByTestId(container, 'loading-button');
-
-    expect(loadingButton).toBeDisabled();
   });
 
   it('Confirm button should be enable if confirm text matches', async () => {
-    const { container } = render(<EntityDeleteModal {...mockProp} />, {
-      wrapper: MemoryRouter,
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} visible />, {
+        wrapper: MemoryRouter,
+      });
     });
 
-    const confirmButton = await findByTestId(container, 'confirm-button');
+    const confirmButton = await screen.findByTestId('confirm-button');
 
     expect(confirmButton).toBeDisabled();
 
-    const inputBox = await findByTestId(container, 'confirmation-text-input');
+    const inputBox = await screen.findByTestId('confirmation-text-input');
 
     fireEvent.change(inputBox, {
       target: { value: 'DELETE' },
@@ -107,14 +88,47 @@ describe('Test EntityDelete Modal Component', () => {
   });
 
   it('Should call onCancel on click of discard button', async () => {
-    const { container } = render(<EntityDeleteModal {...mockProp} />, {
-      wrapper: MemoryRouter,
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} visible />, {
+        wrapper: MemoryRouter,
+      });
     });
 
-    const discardButton = await findByTestId(container, 'discard-button');
+    const discardButton = await screen.findByTestId('discard-button');
 
     fireEvent.click(discardButton);
 
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('should show soft delete label in case of soft delete', async () => {
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} softDelete visible />, {
+        wrapper: MemoryRouter,
+      });
+    });
+
+    expect(await screen.findByText('label.soft-delete')).toBeInTheDocument();
+  });
+
+  it('should focus the input box on open', async () => {
+    // since the focus is set using setTimeout, we need to use fake timers
+    jest.useFakeTimers();
+    await act(async () => {
+      render(<EntityDeleteModal {...mockProp} visible />, {
+        wrapper: MemoryRouter,
+      });
+    });
+
+    await act(async () => {
+      jest.runAllTimers();
+    });
+
+    const inputBox = await screen.findByTestId('confirmation-text-input');
+
+    // Check if element is focused
+    expect(inputBox).toHaveFocus();
+
+    jest.useRealTimers();
   });
 });

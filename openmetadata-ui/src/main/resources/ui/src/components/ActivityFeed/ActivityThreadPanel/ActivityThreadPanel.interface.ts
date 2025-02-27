@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -23,10 +23,14 @@ export interface ActivityThreadPanelProp
   threadType?: ThreadType;
   open?: boolean;
   postFeedHandler: (value: string, id: string) => void;
-  createThread: (data: CreateThread) => void;
+  createThread: (data: CreateThread) => Promise<void>;
   updateThreadHandler: ThreadUpdatedFunc;
   onCancel?: () => void;
-  deletePostHandler?: (threadId: string, postId: string) => void;
+  deletePostHandler?: (
+    threadId: string,
+    postId: string,
+    isThread: boolean
+  ) => void;
 }
 
 export interface ActivityThreadPanelBodyProp
@@ -47,6 +51,7 @@ export interface ActivityThreadPanelBodyProp
 export interface ActivityThreadListProp
   extends HTMLAttributes<HTMLDivElement>,
     Pick<ActivityThreadPanelProp, 'deletePostHandler' | 'updateThreadHandler'> {
+  editAnnouncementPermission?: boolean;
   threads: Thread[];
   selectedThreadId: string;
   postFeed: (value: string) => void;

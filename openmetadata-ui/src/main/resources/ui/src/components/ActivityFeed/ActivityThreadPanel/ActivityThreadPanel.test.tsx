@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,12 +11,7 @@
  *  limitations under the License.
  */
 
-import {
-  findAllByText,
-  findByTestId,
-  findByText,
-  render,
-} from '@testing-library/react';
+import { act, findAllByText, render, screen } from '@testing-library/react';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { MemoryRouter } from 'react-router-dom';
@@ -32,7 +27,7 @@ const mockActivityThreadPanelProp = {
   updateThreadHandler: jest.fn(),
 };
 
-jest.mock('../../../axiosAPIs/feedsAPI', () => ({
+jest.mock('../../../rest/feedsAPI', () => ({
   getAllFeeds: jest.fn().mockImplementation(() => Promise.resolve()),
 }));
 
@@ -42,26 +37,13 @@ jest.mock('../ActivityFeedEditor/ActivityFeedEditor', () => {
 jest.mock('../ActivityFeedPanel/FeedPanelHeader', () => {
   return jest.fn().mockReturnValue(<p>FeedPanelHeader</p>);
 });
-jest.mock('../ActivityFeedPanel/FeedPanelOverlay', () => {
-  return jest.fn().mockReturnValue(<p>FeedPanelOverlay</p>);
-});
-jest.mock('../DeleteConfirmationModal/DeleteConfirmationModal', () => {
-  return jest.fn().mockReturnValue(<p>DeleteConfirmationModal</p>);
-});
+
 jest.mock('./ActivityThread', () => {
   return jest.fn().mockReturnValue(<p>ActivityThread</p>);
 });
 jest.mock('./ActivityThreadList', () => {
   return jest.fn().mockReturnValue(<p>ActivityThreadList</p>);
 });
-
-const mockObserve = jest.fn();
-const mockunObserve = jest.fn();
-
-window.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: mockObserve,
-  unobserve: mockunObserve,
-}));
 
 describe('Test ActivityThreadPanel Component', () => {
   beforeAll(() => {
@@ -72,31 +54,30 @@ describe('Test ActivityThreadPanel Component', () => {
   });
 
   it('Check if it has all child elements', async () => {
-    const { container } = render(
-      <ActivityThreadPanel {...mockActivityThreadPanelProp} />,
-      { wrapper: MemoryRouter }
-    );
-    const panelOverlay = await findByText(container, /FeedPanelOverlay/i);
+    await act(async () => {
+      const { container } = render(
+        <ActivityThreadPanel {...mockActivityThreadPanelProp} />,
+        { wrapper: MemoryRouter }
+      );
 
-    const panelThreadList = await findAllByText(
-      container,
-      /ActivityThreadList/i
-    );
+      const panelThreadList = await findAllByText(
+        container,
+        /ActivityThreadList/i
+      );
 
-    expect(panelOverlay).toBeInTheDocument();
-    expect(panelThreadList).toHaveLength(1);
+      expect(panelThreadList).toHaveLength(1);
+    });
   });
 
   it('Should create an observer if IntersectionObserver is available', async () => {
-    const { container } = render(
-      <ActivityThreadPanel {...mockActivityThreadPanelProp} />,
-      { wrapper: MemoryRouter }
-    );
+    await act(async () => {
+      render(<ActivityThreadPanel {...mockActivityThreadPanelProp} />, {
+        wrapper: MemoryRouter,
+      });
+    });
 
-    const obServerElement = await findByTestId(container, 'observer-element');
+    const obServerElement = await screen.findByTestId('observer-element');
 
     expect(obServerElement).toBeInTheDocument();
-
-    expect(mockObserve).toHaveBeenCalled();
   });
 });

@@ -32,7 +32,10 @@ mock-api/
 
 # antlr
 src/antlr/generated/
+src/generated/antlr/
 
-# cypress
-**/*.spec.js
-cypress/
+# connection schemas
+src/jsons/connectionSchemas/
+
+# generated type
+src/generated

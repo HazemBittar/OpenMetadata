@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,59 +11,63 @@
  *  limitations under the License.
  */
 
-import { Button, Card, Input } from 'antd';
-import { AxiosError, AxiosResponse } from 'axios';
-import { capitalize, isNil } from 'lodash';
-import { observer } from 'mobx-react';
-import { EditorContentRef, EntityTags } from 'Models';
-import React, {
-  ChangeEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useHistory, useLocation, useParams } from 'react-router-dom';
-import AppState from '../../../AppState';
-import { postThread } from '../../../axiosAPIs/feedsAPI';
-import ProfilePicture from '../../../components/common/ProfilePicture/ProfilePicture';
-import RichTextEditor from '../../../components/common/rich-text-editor/RichTextEditor';
-import TitleBreadcrumb from '../../../components/common/title-breadcrumb/title-breadcrumb.component';
-import { FQN_SEPARATOR_CHAR } from '../../../constants/char.constants';
-import { EntityField } from '../../../constants/feed.constants';
-import { EntityType } from '../../../enums/entity.enum';
+import { Button, Form, FormProps, Input, Space, Typography } from 'antd';
+import { useForm } from 'antd/lib/form/Form';
+import { AxiosError } from 'axios';
+import { isEmpty } from 'lodash';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHistory, useParams } from 'react-router-dom';
+import { ActivityFeedTabs } from '../../../components/ActivityFeed/ActivityFeedTab/ActivityFeedTab.interface';
+import Loader from '../../../components/common/Loader/Loader';
+import ResizablePanels from '../../../components/common/ResizablePanels/ResizablePanels';
+import RichTextEditor from '../../../components/common/RichTextEditor/RichTextEditor';
+import { EditorContentRef } from '../../../components/common/RichTextEditor/RichTextEditor.interface';
+import TitleBreadcrumb from '../../../components/common/TitleBreadcrumb/TitleBreadcrumb.component';
+import ExploreSearchCard from '../../../components/ExploreV1/ExploreSearchCard/ExploreSearchCard';
+import { SearchedDataProps } from '../../../components/SearchedData/SearchedData.interface';
+import { EntityField } from '../../../constants/Feeds.constants';
+import { EntityTabs, EntityType } from '../../../enums/entity.enum';
 import {
   CreateThread,
   TaskType,
 } from '../../../generated/api/feed/createThread';
+import { Glossary } from '../../../generated/entity/data/glossary';
 import { ThreadType } from '../../../generated/entity/feed/thread';
-import { getEntityName } from '../../../utils/CommonUtils';
+import { useApplicationStore } from '../../../hooks/useApplicationStore';
+import useCustomLocation from '../../../hooks/useCustomLocation/useCustomLocation';
+import { useFqn } from '../../../hooks/useFqn';
+import { postThread } from '../../../rest/feedsAPI';
+import { isDescriptionContentEmpty } from '../../../utils/BlockEditorUtils';
+import entityUtilClassBase from '../../../utils/EntityUtilClassBase';
 import {
   ENTITY_LINK_SEPARATOR,
   getEntityFeedLink,
 } from '../../../utils/EntityUtils';
-import { getTagsWithoutTier, getTierTags } from '../../../utils/TableUtils';
 import {
   fetchEntityDetail,
   fetchOptions,
   getBreadCrumbList,
-  getColumnObject,
-  getTaskDetailPath,
+  getTaskAssignee,
+  getTaskEntityFQN,
+  getTaskMessage,
 } from '../../../utils/TasksUtils';
 import { showErrorToast, showSuccessToast } from '../../../utils/ToastUtils';
 import Assignees from '../shared/Assignees';
-import TaskPageLayout from '../shared/TaskPageLayout';
-import { cardStyles } from '../TaskPage.styles';
+import '../task-page.style.less';
 import { EntityData, Option } from '../TasksPage.interface';
 
 const RequestDescription = () => {
-  const location = useLocation();
+  const { t } = useTranslation();
+  const { currentUser } = useApplicationStore();
+  const location = useCustomLocation();
   const history = useHistory();
+  const [form] = useForm();
+  const markdownRef = useRef<EditorContentRef>({} as EditorContentRef);
 
-  const markdownRef = useRef<EditorContentRef>();
+  const { entityType } = useParams<{ entityType: EntityType }>();
 
-  const { entityType, entityFQN } = useParams<{ [key: string]: string }>();
+  const { fqn } = useFqn();
   const queryParams = new URLSearchParams(location.search);
 
   const field = queryParams.get('field');
@@ -72,56 +76,34 @@ const RequestDescription = () => {
   const [entityData, setEntityData] = useState<EntityData>({} as EntityData);
   const [options, setOptions] = useState<Option[]>([]);
   const [assignees, setAssignees] = useState<Array<Option>>([]);
-  const [title, setTitle] = useState<string>('');
   const [suggestion, setSuggestion] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const entityTier = useMemo(() => {
-    const tierFQN = getTierTags(entityData.tags || [])?.tagFQN;
+  const entityFQN = useMemo(
+    () => getTaskEntityFQN(entityType, fqn),
+    [fqn, entityType]
+  );
 
-    return tierFQN?.split(FQN_SEPARATOR_CHAR)[1];
-  }, [entityData.tags]);
-
-  const entityTags = useMemo(() => {
-    const tags: EntityTags[] = getTagsWithoutTier(entityData.tags || []) || [];
-
-    return tags.map((tag) => `#${tag.tagFQN}`).join(' ');
-  }, [entityData.tags]);
-
-  const getSanitizeValue = value?.replaceAll(/^"|"$/g, '') || '';
-
-  const message = `Request description for ${getSanitizeValue || entityType}`;
-
-  // get current user details
-  const currentUser = useMemo(
-    () => AppState.getCurrentUserDetails(),
-    [AppState.userDetails, AppState.nonSecureUserDetails]
+  const taskMessage = useMemo(
+    () =>
+      getTaskMessage({
+        value,
+        entityType,
+        entityData,
+        field,
+        startMessage: 'Request description',
+      }),
+    [value, entityType, field, entityData]
   );
 
   const back = () => history.goBack();
 
-  const getColumnDetails = useCallback(() => {
-    if (!isNil(field) && !isNil(value) && field === EntityField.COLUMNS) {
-      const column = getSanitizeValue.split(FQN_SEPARATOR_CHAR).slice(-1);
-
-      const columnObject = getColumnObject(column[0], entityData.columns || []);
-
-      return (
-        <div data-testid="column-details">
-          <p className="tw-font-semibold">Column Details</p>
-          <p>
-            <span className="tw-text-grey-muted">Type:</span>{' '}
-            <span>{columnObject.dataTypeDisplay}</span>
-          </p>
-          <p>{columnObject?.tags?.map((tag) => `#${tag.tagFQN}`)?.join(' ')}</p>
-        </div>
-      );
-    } else {
-      return null;
-    }
-  }, [entityData.columns]);
-
   const onSearch = (query: string) => {
-    fetchOptions(query, setOptions);
+    const data = {
+      query,
+      setOptions,
+    };
+    fetchOptions(data);
   };
 
   const getTaskAbout = () => {
@@ -132,165 +114,205 @@ const RequestDescription = () => {
     }
   };
 
-  const onTitleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { value: newValue } = e.target;
-    setTitle(newValue);
-  };
-
   const onSuggestionChange = (value: string) => {
     setSuggestion(value);
   };
 
-  const onCreateTask = () => {
+  const onCreateTask: FormProps['onFinish'] = (value) => {
+    setIsLoading(true);
     if (assignees.length) {
+      const suggestion = markdownRef.current?.getEditorContent?.();
       const data: CreateThread = {
         from: currentUser?.name as string,
-        message: title || message,
+        message: value.title || taskMessage,
         about: getEntityFeedLink(entityType, entityFQN, getTaskAbout()),
         taskDetails: {
           assignees: assignees.map((assignee) => ({
             id: assignee.value,
             type: assignee.type,
           })),
-          suggestion: markdownRef.current?.getEditorContent(),
+          suggestion: isDescriptionContentEmpty(suggestion)
+            ? undefined
+            : suggestion,
           type: TaskType.RequestDescription,
           oldValue: '',
         },
         type: ThreadType.Task,
       };
+
       postThread(data)
-        .then((res: AxiosResponse) => {
-          showSuccessToast('Task Created Successfully');
-          history.push(getTaskDetailPath(res.data.task.id));
+        .then(() => {
+          showSuccessToast(
+            t('server.create-entity-success', {
+              entity: t('label.task'),
+            })
+          );
+          history.push(
+            entityUtilClassBase.getEntityLink(
+              entityType,
+              entityFQN,
+              EntityTabs.ACTIVITY_FEED,
+              ActivityFeedTabs.TASKS
+            )
+          );
         })
-        .catch((err: AxiosError) => showErrorToast(err));
+        .catch((err: AxiosError) => showErrorToast(err))
+        .finally(() => setIsLoading(false));
     } else {
-      showErrorToast('Cannot create a task without assignee');
+      showErrorToast(t('server.no-task-creation-without-assignee'));
     }
   };
 
   useEffect(() => {
-    fetchEntityDetail(
-      entityType as EntityType,
-      entityFQN as string,
-      setEntityData
-    );
+    fetchEntityDetail(entityType, entityFQN, setEntityData);
   }, [entityFQN, entityType]);
 
   useEffect(() => {
-    const owner = entityData.owner;
-    if (owner) {
-      const defaultAssignee = [
-        {
-          label: getEntityName(owner),
-          value: owner.id || '',
-          type: owner.type,
-        },
-      ];
+    const defaultAssignee = getTaskAssignee(entityData as Glossary);
+
+    if (defaultAssignee) {
       setAssignees(defaultAssignee);
       setOptions(defaultAssignee);
     }
-    setTitle(message);
+    form.setFieldsValue({
+      title: taskMessage.trimEnd(),
+      assignees: defaultAssignee,
+    });
   }, [entityData]);
 
+  if (isEmpty(entityData)) {
+    return <Loader />;
+  }
+
   return (
-    <TaskPageLayout>
-      <TitleBreadcrumb
-        titleLinks={[
-          ...getBreadCrumbList(entityData, entityType as EntityType),
-          { name: 'Create Task', activeTitle: true, url: '' },
-        ]}
-      />
-      <div className="tw-grid tw-grid-cols-3 tw-gap-x-2">
-        <Card
-          className="tw-col-span-2"
-          key="request-description"
-          style={{ ...cardStyles }}
-          title="Create Task">
-          <div data-testid="title">
-            <span>Title:</span>{' '}
-            <Input
-              placeholder="Task title"
-              style={{ margin: '4px 0px' }}
-              value={title}
-              onChange={onTitleChange}
+    <ResizablePanels
+      className="content-height-with-resizable-panel"
+      firstPanel={{
+        className: 'content-resizable-panel-container',
+        minWidth: 700,
+        flex: 0.6,
+        children: (
+          <div className="max-width-md w-9/10 m-x-auto m-y-md d-grid gap-4">
+            <TitleBreadcrumb
+              titleLinks={[
+                ...getBreadCrumbList(entityData, entityType),
+                {
+                  name: t('label.create-entity', {
+                    entity: t('label.task'),
+                  }),
+                  activeTitle: true,
+                  url: '',
+                },
+              ]}
             />
-          </div>
 
-          <div data-testid="assignees">
-            <span>Assignees:</span>{' '}
-            <Assignees
-              assignees={assignees}
-              options={options}
-              onChange={setAssignees}
-              onSearch={onSearch}
-            />
-          </div>
-
-          <p data-testid="description-label">
-            <span>Suggest description:</span>{' '}
-          </p>
-
-          <RichTextEditor
-            className="tw-my-0"
-            initialValue=""
-            placeHolder="Suggest description"
-            ref={markdownRef}
-            style={{ marginTop: '4px' }}
-            onTextChange={onSuggestionChange}
-          />
-
-          <div className="tw-flex tw-justify-end" data-testid="cta-buttons">
-            <Button className="ant-btn-link-custom" type="link" onClick={back}>
-              Back
-            </Button>
-            <Button
-              className="ant-btn-primary-custom"
-              type="primary"
-              onClick={onCreateTask}>
-              {suggestion ? 'Suggest' : 'Submit'}
-            </Button>
-          </div>
-        </Card>
-
-        <div className="tw-pl-2" data-testid="entity-details">
-          <h6 className="tw-text-base">{capitalize(entityType)} Details</h6>
-          <div className="tw-flex tw-mb-4">
-            <span className="tw-text-grey-muted">Owner:</span>{' '}
-            <span>
-              {entityData.owner ? (
-                <span className="tw-flex tw-ml-1">
-                  <ProfilePicture
-                    displayName={getEntityName(entityData.owner)}
-                    id=""
-                    name={getEntityName(entityData.owner)}
-                    width="20"
+            <div
+              className="m-t-0 request-description"
+              key="request-description">
+              <Typography.Paragraph
+                className="text-base"
+                data-testid="form-title">
+                {t('label.create-entity', {
+                  entity: t('label.task'),
+                })}
+              </Typography.Paragraph>
+              <Form
+                data-testid="form-container"
+                form={form}
+                layout="vertical"
+                onFinish={onCreateTask}>
+                <Form.Item
+                  data-testid="title"
+                  label={`${t('label.task-entity', {
+                    entity: t('label.title'),
+                  })}:`}
+                  name="title">
+                  <Input
+                    disabled
+                    placeholder={t('label.task-entity', {
+                      entity: t('label.title'),
+                    })}
                   />
-                  <span className="tw-ml-1">
-                    {getEntityName(entityData.owner)}
-                  </span>
-                </span>
-              ) : (
-                <span className="tw-text-grey-muted tw-ml-1">No Owner</span>
-              )}
-            </span>
+                </Form.Item>
+                <Form.Item
+                  data-testid="assignees"
+                  label={`${t('label.assignee-plural')}:`}
+                  name="assignees"
+                  rules={[
+                    {
+                      required: true,
+                      message: t('message.field-text-is-required', {
+                        fieldText: t('label.assignee-plural'),
+                      }),
+                    },
+                  ]}>
+                  <Assignees
+                    options={options}
+                    value={assignees}
+                    onChange={setAssignees}
+                    onSearch={onSearch}
+                  />
+                </Form.Item>
+                <Form.Item
+                  data-testid="description-label"
+                  label={`${t('label.suggest-entity', {
+                    entity: t('label.description'),
+                  })}:`}
+                  name="SuggestDescription">
+                  <RichTextEditor
+                    initialValue=""
+                    placeHolder={t('label.suggest-entity', {
+                      entity: t('label.description'),
+                    })}
+                    ref={markdownRef}
+                    style={{ marginTop: '4px' }}
+                    onTextChange={onSuggestionChange}
+                  />
+                </Form.Item>
+
+                <Form.Item noStyle>
+                  <Space
+                    className="w-full justify-end"
+                    data-testid="cta-buttons"
+                    size={16}>
+                    <Button data-testid="cancel-btn" type="link" onClick={back}>
+                      {t('label.back')}
+                    </Button>
+                    <Button
+                      data-testid="submit-btn"
+                      htmlType="submit"
+                      loading={isLoading}
+                      type="primary">
+                      {suggestion ? t('label.suggest') : t('label.submit')}
+                    </Button>
+                  </Space>
+                </Form.Item>
+              </Form>
+            </div>
           </div>
-
-          <p data-testid="tier">
-            {entityTier ? (
-              entityTier
-            ) : (
-              <span className="tw-text-grey-muted">No Tier</span>
-            )}
-          </p>
-
-          <p data-testid="tags">{entityTags}</p>
-
-          {getColumnDetails()}
-        </div>
-      </div>
-    </TaskPageLayout>
+        ),
+      }}
+      pageTitle={t('label.task')}
+      secondPanel={{
+        className: 'content-resizable-panel-container',
+        minWidth: 60,
+        flex: 0.4,
+        children: (
+          <ExploreSearchCard
+            hideBreadcrumbs
+            showTags
+            id={entityData.id ?? ''}
+            source={
+              {
+                ...entityData,
+                entityType,
+              } as SearchedDataProps['data'][number]['_source']
+            }
+          />
+        ),
+      }}
+    />
   );
 };
 
-export default observer(RequestDescription);
+export default RequestDescription;

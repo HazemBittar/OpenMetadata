@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,125 +11,145 @@
  *  limitations under the License.
  */
 
-import classNames from 'classnames';
+import { Button, Input, InputRef, Modal, Typography } from 'antd';
+import { t } from 'i18next';
 import React, {
   ChangeEvent,
-  FC,
-  HTMLAttributes,
-  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
   useState,
 } from 'react';
-import { getTitleCase } from '../../../utils/EntityUtils';
-import { Button } from '../../buttons/Button/Button';
-import Loader from '../../Loader/Loader';
+import { Trans } from 'react-i18next';
+import { Transi18next } from '../../../utils/CommonUtils';
+import { EntityDeleteModalProp } from './EntityDeleteModal.interface';
 
-interface Prop extends HTMLAttributes<HTMLDivElement> {
-  onConfirm: () => void;
-  onCancel: () => void;
-  entityName: string;
-  entityType: string;
-  loadingState: string;
-  bodyText?: string;
-  softDelete?: boolean;
-}
-
-const EntityDeleteModal: FC<Prop> = ({
-  loadingState = 'initial',
+const EntityDeleteModal = ({
   className,
   entityName,
-  entityType,
   onCancel,
   onConfirm,
-  bodyText,
   softDelete = false,
-}: Prop) => {
+  visible,
+  bodyText,
+}: EntityDeleteModalProp) => {
+  const deleteTextInputRef = useRef<InputRef>(null);
   const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleOnChange = (e: ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);
   };
 
-  const isNameMatching = useCallback(() => {
-    return name === 'DELETE';
-  }, [name]);
+  const isNameMatching = useMemo(() => name === 'DELETE', [name]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onConfirm();
+    setSaving(false);
+  };
+
+  // To remove the entered text in the modal input after modal closed
+  useEffect(() => {
+    setName('');
+
+    // Using this method to autoFocus Input element since directly calling focus() doesn't work
+    // for the inputs inside modal. Ref - https://github.com/ant-design/ant-design/issues/8668
+    let timeout: number;
+
+    if (visible) {
+      timeout = window.setTimeout(() => {
+        deleteTextInputRef.current?.focus();
+      }, 1);
+    }
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [visible]);
 
   return (
-    <dialog
-      className={classNames('tw-modal', className)}
-      data-testid="delete-confirmation-modal">
-      <div className="tw-modal-backdrop" />
-      <div className="tw-modal-container tw-w-120">
-        <div className={classNames('tw-modal-header')}>
-          <p className="tw-modal-title tw-break-all" data-testid="modal-header">
-            {softDelete ? (
-              <span>
-                Soft delete <strong>{entityName}</strong>
-              </span>
-            ) : (
-              <span>
-                Delete <strong>{entityName}</strong>
-              </span>
-            )}
-          </p>
-        </div>
-        <div className={classNames('tw-modal-body')} data-testid="body-text">
-          <p className="tw-mb-2 tw-break-all">
-            {bodyText ||
-              `Once you delete this ${getTitleCase(
-                entityType
-              )}, it will be removed permanently`}
-          </p>
-          <p className="tw-mb-2">
-            Type <strong>DELETE</strong> to confirm
-          </p>
-          <input
-            autoComplete="off"
-            className="tw-form-inputs tw-form-inputs-padding"
-            data-testid="confirmation-text-input"
-            disabled={loadingState === 'waiting'}
-            name="entityName"
-            placeholder="DELETE"
-            type="text"
-            value={name}
-            onChange={handleOnChange}
-          />
-        </div>
-        <div className={classNames('tw-modal-footer tw-justify-end')}>
+    <Modal
+      centered
+      destroyOnClose
+      className={className}
+      closable={false}
+      data-testid="delete-confirmation-modal"
+      footer={
+        <div data-testid="delete-confirmation-modal-footer">
           <Button
-            className={classNames('tw-mr-2')}
+            className="mr-2"
             data-testid="discard-button"
-            disabled={loadingState === 'waiting'}
-            size="regular"
-            theme="primary"
-            variant="text"
+            disabled={saving}
+            type="text"
             onClick={onCancel}>
-            Cancel
+            {t('label.cancel')}
           </Button>
-          {loadingState === 'waiting' ? (
-            <Button
-              disabled
-              className="tw-w-16 tw-h-10 disabled:tw-opacity-100"
-              data-testid="loading-button"
-              size="regular"
-              theme="primary"
-              variant="contained">
-              <Loader size="small" type="white" />
-            </Button>
+          <Button
+            data-testid={saving ? 'loading-button' : 'confirm-button'}
+            disabled={!isNameMatching}
+            loading={saving}
+            type="primary"
+            onClick={handleSave}>
+            {t('label.confirm')}
+          </Button>
+        </div>
+      }
+      maskClosable={false}
+      open={visible}
+      title={
+        <Typography.Text data-testid="modal-header">
+          {softDelete ? (
+            <span>
+              {t('label.soft-delete')} <strong>{entityName}</strong>
+            </span>
           ) : (
-            <Button
-              data-testid="confirm-button"
-              disabled={!isNameMatching()}
-              size="regular"
-              theme="primary"
-              type="submit"
-              variant="contained"
-              onClick={onConfirm}>
-              Confirm
-            </Button>
+            <span>
+              {t('label.delete')} <strong>{entityName}</strong>
+            </span>
+          )}
+        </Typography.Text>
+      }
+      width={600}>
+      <div data-testid="body-text">
+        <div className="mb-2">
+          {bodyText || (
+            <Transi18next
+              i18nKey="message.permanently-delete-metadata"
+              renderElement={
+                <span data-testid="entityName" style={{ fontWeight: 500 }} />
+              }
+              values={{
+                entityName: entityName,
+              }}
+            />
           )}
         </div>
+        <Typography className="mb-2">
+          <Trans
+            i18nKey="label.type-to-confirm"
+            values={{ text: t('label.delete-uppercase') }}>
+            <strong />
+          </Trans>
+        </Typography>
+        <Input
+          autoComplete="off"
+          data-testid="confirmation-text-input"
+          disabled={saving}
+          name="entityName"
+          placeholder={t('label.delete-uppercase')}
+          ref={deleteTextInputRef}
+          type="text"
+          value={name}
+          onChange={handleOnChange}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && isNameMatching) {
+              handleSave();
+            }
+          }}
+        />
       </div>
-    </dialog>
+    </Modal>
   );
 };
 

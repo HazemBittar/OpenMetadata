@@ -6,9 +6,9 @@
       "type": "BigQuery",
       "hostPort": "localhost:1234",
       "credentials": {
-        "gcsConfig": {
+        "gcpConfig": {
           "type": "service_account",
-          "projectId": "projectID",
+          "projectId": ["projectID"],
           "privateKeyId": "privateKeyId",
           "privateKey": "privateKey",
           "clientEmail": "clientEmail",

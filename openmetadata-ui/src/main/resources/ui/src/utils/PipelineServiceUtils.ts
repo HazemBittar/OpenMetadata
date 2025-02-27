@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,11 +12,22 @@
  */
 
 import { cloneDeep } from 'lodash';
-import { COMMON_UI_SCHEMA } from '../constants/services.const';
+import { COMMON_UI_SCHEMA } from '../constants/Services.constant';
 import { PipelineServiceType } from '../generated/entity/services/pipelineService';
 import airbyteConnection from '../jsons/connectionSchemas/connections/pipeline/airbyteConnection.json';
 import airflowConnection from '../jsons/connectionSchemas/connections/pipeline/airflowConnection.json';
-import glueConnection from '../jsons/connectionSchemas/connections/pipeline/glueConnection.json';
+import customPipelineConnection from '../jsons/connectionSchemas/connections/pipeline/customPipelineConnection.json';
+import dagsterConnection from '../jsons/connectionSchemas/connections/pipeline/dagsterConnection.json';
+import databricksPipelineConnection from '../jsons/connectionSchemas/connections/pipeline/databricksPipelineConnection.json';
+import dbtCloudConnection from '../jsons/connectionSchemas/connections/pipeline/dbtCloudConnection.json';
+import domoPipelineConnection from '../jsons/connectionSchemas/connections/pipeline/domoPipelineConnection.json';
+import fivetranConnection from '../jsons/connectionSchemas/connections/pipeline/fivetranConnection.json';
+import flinkConnection from '../jsons/connectionSchemas/connections/pipeline/flinkConnection.json';
+import gluePipelineConnection from '../jsons/connectionSchemas/connections/pipeline/gluePipelineConnection.json';
+import KafkaConnectConnection from '../jsons/connectionSchemas/connections/pipeline/kafkaConnectConnection.json';
+import nifiConnection from '../jsons/connectionSchemas/connections/pipeline/nifiConnection.json';
+import openLineageConnection from '../jsons/connectionSchemas/connections/pipeline/openLineageConnection.json';
+import splineConnection from '../jsons/connectionSchemas/connections/pipeline/splineConnection.json';
 
 export const getPipelineConfig = (type: PipelineServiceType) => {
   let schema = {};
@@ -33,11 +44,68 @@ export const getPipelineConfig = (type: PipelineServiceType) => {
 
       break;
     }
-    case PipelineServiceType.Glue: {
-      schema = glueConnection;
+    case PipelineServiceType.GluePipeline: {
+      schema = gluePipelineConnection;
 
       break;
     }
+    case PipelineServiceType.KafkaConnect: {
+      schema = KafkaConnectConnection;
+
+      break;
+    }
+    case PipelineServiceType.Fivetran: {
+      schema = fivetranConnection;
+
+      break;
+    }
+    case PipelineServiceType.Dagster: {
+      schema = dagsterConnection;
+
+      break;
+    }
+    case PipelineServiceType.DBTCloud: {
+      schema = dbtCloudConnection;
+
+      break;
+    }
+    case PipelineServiceType.Nifi: {
+      schema = nifiConnection;
+
+      break;
+    }
+    case PipelineServiceType.DomoPipeline: {
+      schema = domoPipelineConnection;
+
+      break;
+    }
+    case PipelineServiceType.CustomPipeline: {
+      schema = customPipelineConnection;
+
+      break;
+    }
+    case PipelineServiceType.DatabricksPipeline: {
+      schema = databricksPipelineConnection;
+
+      break;
+    }
+    case PipelineServiceType.Spline: {
+      schema = splineConnection;
+
+      break;
+    }
+    case PipelineServiceType.OpenLineage: {
+      schema = openLineageConnection;
+
+      break;
+    }
+    case PipelineServiceType.Flink: {
+      schema = flinkConnection;
+
+      break;
+    }
+    default:
+      break;
   }
 
   return cloneDeep({ schema, uiSchema });

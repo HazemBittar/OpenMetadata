@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -12,7 +12,7 @@
  */
 
 import { findByTestId, render } from '@testing-library/react';
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ActivityFeedEditor from './ActivityFeedEditor';
 
@@ -27,17 +27,21 @@ jest.mock('../../../utils/FeedUtils', () => ({
   HTMLToMarkdown: jest.fn().mockReturnValue({ turndown: jest.fn() }),
 }));
 
-jest.mock('../../FeedEditor/FeedEditor', () => ({
-  FeedEditor: jest.fn().mockImplementation(({ onChangeHandler, onSave }) => {
-    return (
-      <div
-        data-testid="feed-editor"
-        onChange={onChangeHandler}
-        onClick={onSave}>
-        FeedEditor
-      </div>
-    );
-  }),
+jest.mock('../FeedEditor/FeedEditor', () => ({
+  __esModule: true,
+  FeedEditor: forwardRef(
+    jest.fn().mockImplementation(({ onChangeHandler, onSave }, ref) => {
+      return (
+        <div
+          data-testid="feed-editor"
+          ref={ref}
+          onChange={onChangeHandler}
+          onClick={onSave}>
+          FeedEditor
+        </div>
+      );
+    })
+  ),
 }));
 
 jest.mock('./SendButton', () => ({
@@ -71,22 +75,5 @@ describe('Test Activity Feed Editor Component', () => {
 
     expect(editor).toBeInTheDocument();
     expect(sendButton).toBeInTheDocument();
-  });
-
-  it('should have passed button classes', async () => {
-    const { container } = render(
-      <ActivityFeedEditor {...mockProp} buttonClass="xyz" />,
-      {
-        wrapper: MemoryRouter,
-      }
-    );
-
-    const editor = await findByTestId(container, 'feed-editor');
-    const sendButton = await findByTestId(container, 'send-button');
-
-    expect(editor).toBeInTheDocument();
-    expect(sendButton).toBeInTheDocument();
-
-    expect(sendButton).toHaveClass('xyz');
   });
 });

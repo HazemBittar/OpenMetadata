@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -28,7 +28,7 @@ const mockActivityThreadPanelBodyBodyProp = {
   threadType: ThreadType.Conversation,
 };
 
-jest.mock('../../../axiosAPIs/feedsAPI', () => ({
+jest.mock('../../../rest/feedsAPI', () => ({
   getAllFeeds: jest.fn().mockImplementation(() => Promise.resolve()),
 }));
 
@@ -38,26 +38,13 @@ jest.mock('../ActivityFeedEditor/ActivityFeedEditor', () => {
 jest.mock('../ActivityFeedPanel/FeedPanelHeader', () => {
   return jest.fn().mockReturnValue(<p>FeedPanelHeader</p>);
 });
-jest.mock('../ActivityFeedPanel/FeedPanelOverlay', () => {
-  return jest.fn().mockReturnValue(<p>FeedPanelOverlay</p>);
-});
-jest.mock('../DeleteConfirmationModal/DeleteConfirmationModal', () => {
-  return jest.fn().mockReturnValue(<p>DeleteConfirmationModal</p>);
-});
+
 jest.mock('./ActivityThread', () => {
   return jest.fn().mockReturnValue(<p>ActivityThread</p>);
 });
 jest.mock('./ActivityThreadList', () => {
   return jest.fn().mockReturnValue(<p>ActivityThreadList</p>);
 });
-
-const mockObserve = jest.fn();
-const mockunObserve = jest.fn();
-
-window.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: mockObserve,
-  unobserve: mockunObserve,
-}));
 
 describe('Test ActivityThreadPanelBodyBody Component', () => {
   beforeAll(() => {
@@ -89,7 +76,5 @@ describe('Test ActivityThreadPanelBodyBody Component', () => {
     const obServerElement = await findByTestId(container, 'observer-element');
 
     expect(obServerElement).toBeInTheDocument();
-
-    expect(mockObserve).toHaveBeenCalled();
   });
 });

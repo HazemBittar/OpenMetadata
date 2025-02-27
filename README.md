@@ -1,76 +1,101 @@
-<div align="center">
-    <img src="./docs/.gitbook/assets/openmetadata-banner.png" align="center" alt="OpenMetadata" height="350"/>
-  <hr />
+<br /><br />
+<p align="center">
+    <a href="https://open-metadata.org">
+        <img alt="Logo" src="https://github.com/open-metadata/OpenMetadata/assets/40225091/e794ced8-7220-4393-8efc-3faf93bfb503" width="49%">
+    </a>
+</p>
 
-[![Build Status](https://github.com/open-metadata/OpenMetadata/actions/workflows/maven-build.yml/badge.svg?event=push)](https://github.com/open-metadata/OpenMetadata/actions/workflows/maven-build.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=open-metadata_OpenMetadata&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=open-metadata_OpenMetadata)
-[![Release](https://img.shields.io/github/release/open-metadata/OpenMetadata/all.svg)](https://github.com/open-metadata/OpenMetadata/releases)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/open-metadata/OpenMetadata)
-[![Twitter Follow](https://img.shields.io/twitter/follow/open_metadata?style=social)](https://twitter.com/intent/follow?screen_name=open_metadata)
-<a href="https://slack.open-metadata.org/"><img src="https://img.shields.io/badge/slack-join-E01E5A?logo=slack" alt="Join us on Slack" height="22"/></a>
-[![License](https://img.shields.io/github/license/open-metadata/OpenMetadata.svg)](LICENSE)
+<p align="center"><b>Empower your Data Journey with OpenMetadata</b></p>
+
+<div align="center">
+    
+![Commit Activity](https://img.shields.io/github/commit-activity/m/open-metadata/OpenMetadata?style=for-the-badge)
+[![Release](https://img.shields.io/github/release/open-metadata/OpenMetadata/all.svg?style=for-the-badge)](https://github.com/open-metadata/OpenMetadata/releases)
 
 </div>
 
-- [What is OpenMetadata?](#what-is-openmetadata )
-- [Features](#features)
+## What is OpenMetadata?
+[OpenMetadata](https://open-metadata.org/)  is a unified metadata platform for data discovery, data observability, and data governance powered by a central metadata repository, in-depth column level lineage, and seamless team collaboration. It is one of the fastest-growing open-source projects with a vibrant community and adoption by a diverse set of companies in a variety of industry verticals. Based on Open Metadata Standards and APIs, supporting connectors to a wide range of data services, OpenMetadata enables end-to-end metadata management, giving you the freedom to unlock the value of your data assets.
+<div align="center">
+    <img src="https://github.com/open-metadata/OpenMetadata/assets/40225091/ebfb4ec5-f0a2-4d58-8ce5-a082b5cf0f76" width=800>
+</div>
+
+<br />
+Contents:
+
+- [Features](#key-features-of-openmetadata)
 - [Try our Sandbox](#try-our-sandbox)
 - [Install & Run](#install-and-run-openmetadata)
-- [Roadmap](roadmap.md)
-- [Documentation and support](#documentation-and-support)
+- [Roadmap](https://docs.open-metadata.org/latest/roadmap)
+- [Documentation and Support](#documentation-and-support)
 - [Contributors](#contributors)
-- [License](#license)
 
-# What is OpenMetadata?
-[OpenMetadata](https://open-metadata.org/) is an Open Standard for Metadata. A Single place to Discover, Collaborate, and Get your data right.
-<img src="https://user-images.githubusercontent.com/1417689/129423079-d21cbf3f-786f-4d4a-b6c3-b66feca234b8.png"  width="800">
+OpenMetadata Consists of Four Main Components:
+- **Metadata Schemas**: These are the core definitions and vocabulary for metadata based on common abstractions and types. They also allow for custom extensions and properties to suit different use cases and domains.
+- **Metadata Store**: This is the central repository for storing and managing the metadata graph, which connects data assets, users, and tool-generated metadata in a unified way.
+- **Metadata APIs**: These are the interfaces for producing and consuming metadata, built on top of the metadata schemas. They enable seamless integration of user interfaces and tools, systems, and services with the metadata store.
+- **Ingestion Framework**: This is a pluggable framework for ingesting metadata from various sources and tools to the metadata store. It supports about 75+ connectors for data warehouses, databases, dashboard services, messaging services, pipeline services, and more.
 
-OpenMetadata includes the following:
-- **Metadata schemas** - defines core abstractions and vocabulary for metadata with schemas for Types, Entities, Relationships between entities. This is the foundation of the Open Metadata Standard.
+## Key Features of OpenMetadata
+**Data Discovery**: Find and explore all your data assets in a single place using various strategies, such as keyword search, data associations, and advanced queries. You can search across tables, topics, dashboards, pipelines, and services.
 
-- **Metadata store** - stores metadata graph that connects data assets, user, and tool generated metadata.
+![12](https://github.com/open-metadata/OpenMetadata/assets/40225091/0dbd2746-c93d-4a47-8d3e-ceb3ae01436f)
+<br><br><br>
+**Data Collaboration**: Communicate, converse, and cooperate with other users and teams on data assets. You can get event notifications, send alerts, add announcements, create tasks, and use conversation threads.
 
-- **Metadata APIs** - for producing and consuming metadata built on schemas for User Interfaces and Integration of tools, systems, and services.
+![11](https://github.com/open-metadata/OpenMetadata/assets/40225091/7df29e12-8a29-44b7-9466-42474823783f)
+<br><br><br>
+**Data Quality and Profiler**: Measure and monitor the quality with **no-code** to build trust in your data. You can define and run data quality tests, group them into test suites, and view the results in an interactive dashboard. With powerful collaboration, make data quality a shared responsibility in your organization.
 
-- **Ingestion framework** - a pluggable framework for integrating tools and ingesting metadata to the metadata store. Ingestion framework already supports well know data warehouses - Google BigQuery, Snowflake, Amazon Redshift, and Apache Hive, and databases - MySQL, Postgres, Oracle, and MSSQL.
+![8](https://github.com/open-metadata/OpenMetadata/assets/40225091/6b330827-cc2d-4d06-abf0-a4d42ce532ba)
+<br><br><br>
+**Data Governance**: Enforce data policies and standards across your organization. You can define data domains and data products, assign owners and stakeholders, and classify data assets using tags and terms. Use powerful automation features to auto-classify your data.
 
-- **OpenMetadata User Interface** - one single place for users to discover, and collaborate on all data.
+![10](https://github.com/open-metadata/OpenMetadata/assets/40225091/f7384a71-6b58-44ad-983f-e302718ee3f1)
+<br><br><br>
+**Data Insights and KPIs**: Use reports and platform analytics to understand how your organization's data is doing. Data Insights provides a single-pane view of all the key metrics to reflect the state of your data best. Define the Key Performance Indicators (KPIs) and set goals within OpenMetadata to work towards better documentation, ownership, and tiering. Alerts can be set against the KPIs to be received on a specified schedule.
 
-## Features
-
-Check all the supported features [here](https://docs.open-metadata.org/features) ✨
-
-![](./docs/.gitbook/assets/lineage.gif)
+![9](https://github.com/open-metadata/OpenMetadata/assets/40225091/61fc2f65-2436-4fc9-9434-c27ee9b25183)
+<br><br><br>
+**Data Lineage**: Track and visualize the origin and transformation of your data assets end-to-end. You can view column-level lineage, filter queries, and edit lineage manually using a no-code editor.
+  
+**Data Documentation**: Document your data assets and metadata entities using rich text, images, and links. You can also add comments and annotations and generate data dictionaries and data catalogs.
+  
+**Data Observability**: Monitor the health and performance of your data assets and pipelines. You can view metrics such as data freshness, data volume, data quality, and data latency. You can also set up alerts and notifications for any anomalies or failures.
+  
+**Data Security**: Secure your data and metadata using various authentication and authorization mechanisms. You can integrate with different identity providers for single sign-on and define roles and policies for access control.
+  
+**Webhooks**: Integrate with external applications and services using webhooks. You can register URLs to receive metadata event notifications and integrate with Slack, Microsoft Teams, and Google Chat.
+  
+**Connectors**: Ingest metadata from various sources and tools using connectors. OpenMetadata supports about 75+ connectors for data warehouses, databases, dashboard services, messaging services, pipeline services, and more.
 
 ## Try our Sandbox
 
 Take a look and play with sample data at [http://sandbox.open-metadata.org](http://sandbox.open-metadata.org)
 
-[<img src="./docs/.gitbook/assets/demo-button.png" height="50"/>](http://sandbox.open-metadata.org)
-
-
-## Install and run OpenMetadata
-Get up and running in few minutes. See the OpenMetadata documentation for [installation instructions](https://docs.open-metadata.org/deploy/local-deployment).
+## Install and Run OpenMetadata
+Get up and running in a few minutes. See the OpenMetadata documentation for [installation instructions](https://docs.open-metadata.org/quick-start/local-docker-deployment).
 
 ## Documentation and Support
 
-Check out [OpenMetadata documentation](https://docs.open-metadata.org/) for a complete description of OpenMetadata's features.
+We're here to help and make OpenMetadata even better! Check out [OpenMetadata documentation](https://docs.open-metadata.org/) for a complete description of OpenMetadata's features. Join our [Slack Community](https://slack.open-metadata.org/) to get in touch with us if you want to chat, need help, or discuss new feature requirements.
 
-Join [our Slack Community](https://slack.open-metadata.org/) if you get stuck, want to chat, or are thinking of a new feature.
-
-Or join the group at [https://groups.google.com/g/openmetadata-users](https://groups.google.com/g/openmetadata-users)
-
-We're here to help - and make OpenMetadata even better!
 
 ## Contributors
 
-We ❤️ all contributions, big and small! Check out our [CONTRIBUTING](./CONTRIBUTING.md) guide to get started and let us know how we can help.
+We ❤️ all contributions, big and small! Check out our [CONTRIBUTING](./CONTRIBUTING.md) guide to get started, and let us know how we can help.
 
 Don't want to miss anything? Give the project a ⭐ 🚀 
 
-Big thanks to all of you who already support us!
+A HUGE THANK YOU to all our supporters!
 
-[![Stargazers repo roster for @open-metadata/OpenMetadata](https://reporoster.com/stars/open-metadata/OpenMetadata)](https://github.com/open-metadata/OpenMetadata/stargazers)
+<a href="https://github.com/open-metadata/OpenMetadata/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=open-metadata/OpenMetadata&max=4000&columns=30" />
+</a>
+
+## Stargazers
+
+[![Stargazers of @open-metadata/OpenMetadata repo](http://reporoster.com/stars/open-metadata/OpenMetadata)](https://github.com/open-metadata/OpenMetadata/stargazers)
 
 ## License
 OpenMetadata is released under [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)

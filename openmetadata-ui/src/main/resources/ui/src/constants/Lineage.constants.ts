@@ -1,28 +1,129 @@
-import { capitalize } from 'lodash';
-import { ElementLoadingState } from '../components/EntityLineage/EntityLineage.interface';
-import { EntityType } from '../enums/entity.enum';
+/*
+ *  Copyright 2022 Collate.
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 
-export const foreignObjectSize = 40;
-export const zoomValue = 1;
+import { t } from 'i18next';
+import { ElementLoadingState } from '../components/Entity/EntityLineage/EntityLineage.interface';
+import { EntityFields } from '../enums/AdvancedSearch.enum';
+import { EntityType } from '../enums/entity.enum';
+import { SearchIndex } from '../enums/search.enum';
+import { Source } from '../generated/type/entityLineage';
+
+export const FOREIGN_OBJECT_SIZE = 40;
+export const ZOOM_VALUE = 0.65;
+export const MIN_ZOOM_VALUE = 0.1;
+export const MAX_ZOOM_VALUE = 2.5;
+
+export const ZOOM_TRANSITION_DURATION = 800;
+export const DATATYPES_HAVING_SUBFIELDS = [
+  'RECORD',
+  'STRUCT',
+  'ARRAY',
+  'UNION',
+  'TABLE',
+];
 
 export const entityData = [
   {
-    type: EntityType.TABLE,
-    label: capitalize(EntityType.TABLE),
+    type: SearchIndex.TABLE,
+    label: t('label.table-plural'),
   },
-  { type: EntityType.PIPELINE, label: capitalize(EntityType.PIPELINE) },
-  { type: EntityType.DASHBOARD, label: capitalize(EntityType.DASHBOARD) },
-  { type: EntityType.TOPIC, label: capitalize(EntityType.TOPIC) },
-  { type: EntityType.MLMODEL, label: capitalize(EntityType.MLMODEL) },
+  {
+    type: SearchIndex.DASHBOARD,
+    label: t('label.dashboard-plural'),
+  },
+  {
+    type: SearchIndex.TOPIC,
+    label: t('label.topic-plural'),
+  },
+  {
+    type: SearchIndex.MLMODEL,
+    label: t('label.ml-model-plural'),
+  },
+  {
+    type: SearchIndex.CONTAINER,
+    label: t('label.container-plural'),
+  },
+  {
+    type: SearchIndex.PIPELINE,
+    label: t('label.pipeline-plural'),
+  },
+  {
+    type: SearchIndex.SEARCH_INDEX,
+    label: t('label.search-index-plural'),
+  },
+  {
+    type: SearchIndex.DASHBOARD_DATA_MODEL,
+    label: t('label.data-model-plural'),
+  },
+  {
+    type: SearchIndex.API_ENDPOINT_INDEX,
+    label: t('label.api-endpoint-plural'),
+  },
+  {
+    type: SearchIndex.METRIC_SEARCH_INDEX,
+    label: t('label.metric-plural'),
+  },
 ];
 
-export const positionX = 150;
-export const positionY = 60;
-
-export const nodeWidth = 400;
-export const nodeHeight = 50;
+export const NODE_WIDTH = 400;
+export const NODE_HEIGHT = 90;
 
 export const ELEMENT_DELETE_STATE = {
   loading: false,
   status: 'initial' as ElementLoadingState,
 };
+
+export const LINEAGE_DEFAULT_QUICK_FILTERS = [
+  EntityFields.DOMAIN,
+  EntityFields.OWNERS,
+  EntityFields.TAG,
+  EntityFields.COLUMN,
+];
+
+export const LINEAGE_SOURCE: { [key in Source]: string } = {
+  [Source.DashboardLineage]: 'Dashboard Lineage',
+  [Source.DbtLineage]: 'dbt Lineage',
+  [Source.Manual]: 'Manual',
+  [Source.PipelineLineage]: 'Pipeline Lineage',
+  [Source.QueryLineage]: 'Query Lineage',
+  [Source.SparkLineage]: 'Spark Lineage',
+  [Source.ViewLineage]: 'View Lineage',
+  [Source.OpenLineage]: 'OpenLineage',
+  [Source.CrossDatabaseLineage]: 'Cross Database Lineage',
+  [Source.ExternalTableLineage]: 'External Table Lineage',
+};
+
+export const LINEAGE_COLUMN_NODE_SUPPORTED = [
+  EntityType.TABLE,
+  EntityType.DASHBOARD,
+  EntityType.MLMODEL,
+  EntityType.DASHBOARD_DATA_MODEL,
+  EntityType.CONTAINER,
+  EntityType.TOPIC,
+  EntityType.SEARCH_INDEX,
+  EntityType.API_ENDPOINT,
+];
+
+export const LINEAGE_EXPORT_HEADERS = [
+  { field: 'name', title: 'Name' },
+  { field: 'displayName', title: 'Display Name' },
+  { field: 'fullyQualifiedName', title: 'Fully Qualified Name' },
+  { field: 'entityType', title: 'Entity Type' },
+  { field: 'direction', title: 'Direction' },
+  { field: 'owners', title: 'Owner' },
+  { field: 'domain', title: 'Domain' },
+  { field: 'tags', title: 'Tags' },
+  { field: 'tier', title: 'Tier' },
+  { field: 'glossaryTerms', title: 'Glossary Terms' },
+  { field: 'depth', title: 'Level' },
+];

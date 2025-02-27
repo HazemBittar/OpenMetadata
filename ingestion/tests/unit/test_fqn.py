@@ -12,8 +12,13 @@
 Test FQN build behavior
 """
 from unittest import TestCase
+from unittest.mock import MagicMock
+
+import pytest
 
 from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.type.basic import FullyQualifiedEntityName
+from metadata.ingestion.ometa.utils import quote
 from metadata.utils import fqn
 
 
@@ -53,6 +58,7 @@ class TestFqn(TestCase):
             FQNTest(["a.1", "b.2", "c", "d"], '"a.1"."b.2".c.d'),
             FQNTest(["a.1", "b.2", "c.3", "d"], '"a.1"."b.2"."c.3".d'),
             FQNTest(["a.1", "b.2", "c.3", "d.4"], '"a.1"."b.2"."c.3"."d.4"'),
+            FQNTest(["fqn", "test.test.test"], 'fqn."test.test.test"'),
         ]
         for x in xs:
             x.validate(fqn.split(x.fqn), fqn._build(*x.parts))
@@ -82,14 +88,16 @@ class TestFqn(TestCase):
 
     def test_invalid(self):
         with self.assertRaises(Exception):
-            fqn.split('a"')
+            fqn.split('a.."')
 
     def test_build_table(self):
         """
         Validate Table FQN building
         """
+        mocked_metadata = MagicMock()
+        mocked_metadata.es_search_from_fqn.return_value = None
         table_fqn = fqn.build(
-            ...,  # metadata client not needed with all params
+            metadata=mocked_metadata,
             entity_type=Table,
             service_name="service",
             database_name="db",
@@ -99,7 +107,7 @@ class TestFqn(TestCase):
         self.assertEqual(table_fqn, "service.db.schema.table")
 
         table_fqn_dots = fqn.build(
-            ...,  # metadata client not needed with all params
+            metadata=mocked_metadata,
             entity_type=Table,
             service_name="service",
             database_name="data.base",
@@ -109,7 +117,7 @@ class TestFqn(TestCase):
         self.assertEqual(table_fqn_dots, 'service."data.base".schema.table')
 
         table_fqn_space = fqn.build(
-            ...,  # metadata client not needed with all params
+            metadata=mocked_metadata,
             entity_type=Table,
             service_name="service",
             database_name="data base",
@@ -117,3 +125,34 @@ class TestFqn(TestCase):
             table_name="table",
         )
         self.assertEqual(table_fqn_space, "service.data base.schema.table")
+
+    def test_split_test_case_fqn(self):
+        """test for split test case"""
+        split_fqn = fqn.split_test_case_fqn(
+            "local_redshift.dev.dbt_jaffle.customers.customer_id.expect_column_max_to_be_between"
+        )
+
+        assert split_fqn.service == "local_redshift"
+        assert split_fqn.database == "dev"
+        assert split_fqn.schema_ == "dbt_jaffle"
+        assert split_fqn.table == "customers"
+        assert split_fqn.column == "customer_id"
+        assert split_fqn.test_case == "expect_column_max_to_be_between"
+
+        split_fqn = fqn.split_test_case_fqn(
+            "local_redshift.dev.dbt_jaffle.customers.expect_table_column_to_be_between"
+        )
+
+        assert not split_fqn.column
+        assert split_fqn.test_case == "expect_table_column_to_be_between"
+
+        with pytest.raises(ValueError):
+            fqn.split_test_case_fqn("local_redshift.dev.dbt_jaffle.customers")
+
+    def test_quote_fqns(self):
+        """We can properly quote FQNs for URL usage"""
+        assert quote(FullyQualifiedEntityName("a.b.c")) == "a.b.c"
+        # Works with strings directly
+        assert quote("a.b.c") == "a.b.c"
+        assert quote(FullyQualifiedEntityName('"foo.bar".baz')) == "%22foo.bar%22.baz"
+        assert quote('"foo.bar/baz".hello') == "%22foo.bar%2Fbaz%22.hello"

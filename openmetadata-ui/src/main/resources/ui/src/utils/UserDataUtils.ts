@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,51 +11,20 @@
  *  limitations under the License.
  */
 
-import { AxiosError, AxiosResponse } from 'axios';
-import { isEqual, isUndefined } from 'lodash';
-import { SearchedUsersAndTeams, SearchResponse } from 'Models';
-import AppState from '../AppState';
-import { OidcUser } from '../authentication/auth-provider/AuthProvider.interface';
-import {
-  getSearchedTeams,
-  getSearchedUsers,
-  getSuggestedTeams,
-  getSuggestedUsers,
-} from '../axiosAPIs/miscAPI';
-import { getRoles } from '../axiosAPIs/rolesAPI';
-import { getUserById, getUserByName, getUsers } from '../axiosAPIs/userAPI';
-import { WILD_CARD_CHAR } from '../constants/char.constants';
-import { SettledStatus } from '../enums/axios.enum';
-import { User } from '../generated/entity/teams/user';
-import { formatTeamsResponse, formatUsersResponse } from './APIUtils';
+import { AxiosError } from 'axios';
+import { compare } from 'fast-json-patch';
+import { isEqual } from 'lodash';
+import { OidcUser } from '../components/Auth/AuthProviders/AuthProvider.interface';
+import { updateUserDetail } from '../rest/userAPI';
+import { User } from './../generated/entity/teams/user';
 import { getImages } from './CommonUtils';
-
-// Moving this code here from App.tsx
-export const getAllUsersList = (arrQueryFields = ''): void => {
-  getUsers(arrQueryFields, 1)
-    .then((res) => {
-      AppState.updateUsers(res.data.data);
-    })
-    .catch(() => {
-      AppState.updateUsers([]);
-    });
-};
-
-const getAllRoles = (): void => {
-  getRoles()
-    .then((res: AxiosResponse) => {
-      AppState.updateUserRole(res.data.data);
-    })
-    .catch(() => {
-      AppState.updateUserRole([]);
-    });
-};
-
-export const fetchAllUsers = () => {
-  AppState.loadUserProfilePics();
-  getAllUsersList('profile,teams,roles');
-  getAllRoles();
-};
+import i18n from './i18next/LocalUtil';
+import {
+  getImageWithResolutionAndFallback,
+  ImageQuality,
+} from './ProfilerUtils';
+import { showErrorToast } from './ToastUtils';
+import userClassBase from './UserClassBase';
 
 export const getUserDataFromOidc = (
   userData: User,
@@ -65,13 +34,16 @@ export const getUserDataFromOidc = (
     ? getImages(oidcUser.profile.picture)
     : undefined;
   const profileEmail = oidcUser.profile.email;
-  const email = profileEmail ? profileEmail : userData.email;
+  const email =
+    profileEmail && profileEmail.indexOf('@') !== -1
+      ? profileEmail
+      : userData.email;
 
   return {
     ...userData,
     email,
     displayName: oidcUser.profile.name,
-    profile: images ? { images } : userData.profile,
+    profile: images ? { ...userData.profile, images } : undefined,
   };
 };
 
@@ -92,116 +64,64 @@ export const matchUserDetails = (
   return isMatch;
 };
 
-export const isCurrentUserAdmin = () => {
-  return Boolean(AppState.getCurrentUserDetails()?.isAdmin);
-};
+export const getUserWithImage = (user: User) => {
+  const profile =
+    getImageWithResolutionAndFallback(
+      ImageQuality['6x'],
+      user.profile?.images
+    ) ?? '';
 
-export const fetchUserProfilePic = (userId?: string, username?: string) => {
-  let promise;
-
-  if (userId) {
-    promise = getUserById(userId, 'profile');
-  } else if (username) {
-    promise = getUserByName(username, 'profile');
-  } else {
-    return;
+  if (!profile && user.isBot) {
+    user = {
+      ...user,
+      profile: {
+        images: {
+          image: userClassBase.getBotLogo(user.name) ?? '',
+        },
+      },
+    };
   }
 
-  AppState.updateProfilePicsLoading(userId, username);
-
-  promise
-    .then((res) => {
-      const userData = res.data as User;
-      const profile = userData.profile?.images?.image512 || '';
-
-      AppState.updateUserProfilePic(userData.id, userData.name, profile);
-    })
-    .catch((err: AxiosError) => {
-      // ignore exception
-      AppState.updateUserProfilePic(
-        userId,
-        username,
-        err.response?.status === 404 ? '' : undefined
-      );
-    })
-    .finally(() => {
-      AppState.removeProfilePicsLoading(userId, username);
-    });
+  return user;
 };
 
-export const getUserProfilePic = (userId?: string, username?: string) => {
-  let profile;
-  if (userId || username) {
-    profile = AppState.getUserProfilePic(userId, username);
+export const checkIfUpdateRequired = async (
+  existingUserDetails: User,
+  newUser: OidcUser
+): Promise<User> => {
+  const updatedUserData = getUserDataFromOidc(existingUserDetails, newUser);
 
-    if (
-      isUndefined(profile) &&
-      !AppState.isProfilePicLoading(userId, username)
-    ) {
-      fetchUserProfilePic(userId, username);
+  if (existingUserDetails.email !== updatedUserData.email) {
+    return existingUserDetails;
+  } else if (
+    existingUserDetails.email === updatedUserData.email &&
+    // We only want to update images / profile info not any other information
+    updatedUserData.profile?.images &&
+    !matchUserDetails(existingUserDetails, updatedUserData, ['profile'])
+  ) {
+    const finalData = {
+      ...existingUserDetails,
+      //   We want to override any profile information that is coming from the OIDC provider
+      profile: {
+        ...existingUserDetails.profile,
+        ...updatedUserData.profile,
+      },
+    };
+    const jsonPatch = compare(existingUserDetails, finalData);
+
+    try {
+      const res = await updateUserDetail(existingUserDetails.id, jsonPatch);
+
+      return res;
+    } catch (error) {
+      showErrorToast(
+        error as AxiosError,
+        i18n.t('server.entity-updating-error', {
+          entity: i18n.t('label.admin-profile'),
+        })
+      );
     }
   }
 
-  return profile;
-};
-
-export const searchFormattedUsersAndTeams = (
-  searchQuery = WILD_CARD_CHAR,
-  from = 1
-): Promise<SearchedUsersAndTeams> => {
-  return new Promise<SearchedUsersAndTeams>((resolve, reject) => {
-    const promises = [
-      getSearchedUsers(searchQuery, from),
-      getSearchedTeams(searchQuery, from),
-    ];
-    Promise.allSettled(promises)
-      .then(
-        ([resUsers, resTeams]: Array<PromiseSettledResult<SearchResponse>>) => {
-          const users =
-            resUsers.status === SettledStatus.FULFILLED
-              ? formatUsersResponse(resUsers.value.data.hits.hits)
-              : [];
-          const teams =
-            resTeams.status === SettledStatus.FULFILLED
-              ? formatTeamsResponse(resTeams.value.data.hits.hits)
-              : [];
-          resolve({ users, teams });
-        }
-      )
-      .catch((err: AxiosError) => {
-        reject(err);
-      });
-  });
-};
-
-export const suggestFormattedUsersAndTeams = (
-  searchQuery: string
-): Promise<SearchedUsersAndTeams> => {
-  return new Promise<SearchedUsersAndTeams>((resolve, reject) => {
-    const promises = [
-      getSuggestedUsers(searchQuery),
-      getSuggestedTeams(searchQuery),
-    ];
-    Promise.allSettled(promises)
-      .then(
-        ([resUsers, resTeams]: Array<PromiseSettledResult<AxiosResponse>>) => {
-          const users =
-            resUsers.status === SettledStatus.FULFILLED
-              ? formatUsersResponse(
-                  resUsers.value.data.suggest['metadata-suggest'][0].options
-                )
-              : [];
-          const teams =
-            resTeams.status === SettledStatus.FULFILLED
-              ? formatTeamsResponse(
-                  resTeams.value.data.suggest['metadata-suggest'][0].options
-                )
-              : [];
-          resolve({ users, teams });
-        }
-      )
-      .catch((err: AxiosError) => {
-        reject(err);
-      });
-  });
+  return existingUserDetails;
 };

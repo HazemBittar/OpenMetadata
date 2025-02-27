@@ -13,7 +13,7 @@
 OpenMetadata Airflow Lineage Backend example. Airflow provides a pluggable lineage backend that can
 read a DAG's configured inlets and outlets to compose a lineage. With OpenMetadata we have a airflow lineage backend
 to get all of the workflows in Airflow and also any lineage user's configured.
-Please refer to https://docs.open-metadata.org/lineage/configure-airflow-lineage on how to configure the lineage backend
+Please refer to https://docs.open-metadata.org/connectors/pipeline/airflow/lineage-backend on how to configure the lineage backend
 with Airflow Scheduler
 This is an example to demonstrate on how to configure a Airflow DAG's inlets and outlets
 """
@@ -23,6 +23,10 @@ from datetime import timedelta
 
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
+
+from metadata.generated.schema.entity.data.container import Container
+from metadata.generated.schema.entity.data.table import Table
+from metadata.ingestion.source.pipeline.airflow.lineage_parser import OMEntity
 
 default_args = {
     "owner": "openmetadata_airflow_example",
@@ -45,7 +49,6 @@ def openmetadata_airflow_lineage_example():
         inlets={
             "tables": [
                 "sample_data.ecommerce_db.shopify.raw_order",
-                "sample_data.ecommerce_db.shopify.raw_customer",
             ],
         },
         outlets={"tables": ["sample_data.ecommerce_db.shopify.fact_order"]},
@@ -53,7 +56,43 @@ def openmetadata_airflow_lineage_example():
     def generate_data():
         pass
 
+    @task(
+        inlets=[
+            OMEntity(entity=Container, fqn="s3_storage_sample.transactions", key="test")
+        ],
+        outlets=[
+            OMEntity(
+                entity=Table,
+                fqn="sample_data.ecommerce_db.shopify.raw_order",
+                key="test",
+            )
+        ],
+    )
+    def generate_data2():
+        pass
+
+    @task(
+        inlets=[
+            {
+                "entity": "container",
+                "fqn": "s3_storage_sample.departments",
+                "key": "test",
+            },
+        ],
+        outlets=[
+            {
+                "entity": "table",
+                "fqn": "sample_data.ecommerce_db.shopify.raw_order",
+                "key": "test",
+            },
+        ],
+    )
+    def generate_data3():
+        pass
+
     generate_data()
+    generate_data2()
+    generate_data3()
 
 
 openmetadata_airflow_lineage_example_dag = openmetadata_airflow_lineage_example()

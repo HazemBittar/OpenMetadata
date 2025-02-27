@@ -18,17 +18,23 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.open-metadata</groupId>
-  <artifactId>catalog</artifactId>
-  <name>OpenMetadata-catalog</name>
-  <description>Openmetadata catalog</description>
-  <version>0.12.0-SNAPSHOT</version>
+  <artifactId>platform</artifactId>
+  <name>OpenMetadata-Platform</name>
+  <description> is an all-in-one platform for data discovery, data lineage, data quality, observability, governance,
+    and team collaboration. It is one of the fastest growing open-source projects with a vibrant community and
+    adoption by a diverse set of companies in a variety of industry verticals. Powered by a centralized metadata store
+    based on Open Metadata Standards/APIs, supporting connectors to a wide range of data services,
+    OpenMetadata enables end-to-end metadata management, giving you the freedom to unlock the value of your data assets.
+  </description>
+  <version>1.6.0-SNAPSHOT</version>
   <url>https://github.com/open-metadata/OpenMetadata</url>
   <modules>
+    <module>openmetadata-spec</module>
     <module>common</module>
-    <module>catalog-rest-service</module>
+    <module>openmetadata-shaded-deps</module>
+    <module>openmetadata-service</module>
     <module>openmetadata-ui</module>
     <module>openmetadata-dist</module>
-    <module>openmetadata-core</module>
     <module>openmetadata-clients</module>
   </modules>
   <packaging>pom</packaging>
@@ -68,54 +74,52 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <mockito.version>4.6.1</mockito.version>
-    <slf4j.version>1.7.36</slf4j.version>
-    <jackson.version>2.13.3</jackson.version>
-    <dropwizard.version>2.0.28</dropwizard.version>
-    <dropwizard-jdbi3.version>2.0.28</dropwizard-jdbi3.version>
-    <jersey-bom.version>2.35</jersey-bom.version>
+    <mockito.version>5.14.2</mockito.version>
+    <!-- Upgrading slf4j causes dropwizard issues -->
+    <slf4j.version>2.0.4</slf4j.version>
+    <jackson.version>2.17.2</jackson.version>
+    <dropwizard.version>2.1.11</dropwizard.version>
+    <dropwizard-jdbi3.version>2.1.6</dropwizard-jdbi3.version>
+    <diffMatch.version>1.0</diffMatch.version>
+    <jersey-bom.version>2.40</jersey-bom.version>
     <javax.ws.rs-api.version>2.1.1</javax.ws.rs-api.version>
     <!-- update from here -->
     <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
-    <maven-jar-plugin.version>3.0.2</maven-jar-plugin.version>
-    <maven-surefire.version>3.0.0-M5</maven-surefire.version>
-    <maven-shade-plugin.version>2.4.1</maven-shade-plugin.version>
-    <maven-javadoc-plugin.version>2.10.3</maven-javadoc-plugin.version>
-    <maven-src-plugin.version>2.2.1</maven-src-plugin.version>
+    <maven-dependency-plugin.version>3.6.0</maven-dependency-plugin.version>
+    <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
+    <maven-surefire.version>3.1.2</maven-surefire.version>
+    <maven-javadoc-plugin.version>3.6.0</maven-javadoc-plugin.version>
+    <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     <jakarta.version>3.0.2</jakarta.version>
     <jaxb.version>3.0.2</jaxb.version>
     <wiremock-standalone.version>2.15.0</wiremock-standalone.version>
-    <jacoco-plugin.version>0.8.6</jacoco-plugin.version>
-    <jdbi3.version>3.30.0</jdbi3.version>
-    <jeasy.version>4.1.0</jeasy.version>
-    <commons-cli.version>1.5.0</commons-cli.version>
-    <commons-io.version>2.11.0</commons-io.version>
-    <flyway.version>8.1.0</flyway.version>
-    <redshift-jdbc.version>2.1.0.7</redshift-jdbc.version>
-    <gson.version>2.9.0</gson.version>
-    <mysql.connector.version>8.0.29</mysql.connector.version>
-    <postgres.connector.version>42.3.6</postgres.connector.version>
-    <jsonschema2pojo.version>1.1.1</jsonschema2pojo.version>
+    <jacoco-plugin.version>0.8.10</jacoco-plugin.version>
+    <!-- Upgrading to jdbi version causes test failures-->
+    <jdbi3.version>3.37.1</jdbi3.version>
+    <commons-cli.version>1.9.0</commons-cli.version>
+    <commons-io.version>2.17.0</commons-io.version>
+    <flyway.version>9.22.3</flyway.version>
+    <redshift-jdbc.version>2.1.0.30</redshift-jdbc.version>
+    <gson.version>2.11.0</gson.version>
+    <mysql.connector.version>9.1.0</mysql.connector.version>
+    <postgres.connector.version>42.7.4</postgres.connector.version>
+    <jsonschema2pojo.version>1.2.1</jsonschema2pojo.version>
     <commons-lang.version>2.6</commons-lang.version>
-    <lombok.version>1.18.24</lombok.version>
-    <tomcat-jdbc.version>10.0.8</tomcat-jdbc.version>
-    <!--  We need ElasticSearch client to be compatible with both ElasticSearch and AWS OpenSearch
-    This compatibility broken in 7.14, so lets keep this version pinned to 7.13.x
-     -->
-    <elasticsearch.version>7.13.4</elasticsearch.version>
+    <lombok.version>1.18.34</lombok.version>
+    <tomcat-jdbc.version>10.1.10</tomcat-jdbc.version>
+    <elasticsearch.version>7.17.23</elasticsearch.version>
+    <opensearch.version>2.5.0</opensearch.version>
     <httpasyncclient.version>4.1.5</httpasyncclient.version>
-    <openapiswagger.version>2.2.0</openapiswagger.version>
-    <nimbus-jose-jwt.version>7.9</nimbus-jose-jwt.version>
-    <spring-security-kerberos-core.version>1.0.1.RELEASE</spring-security-kerberos-core.version>
-    <httpclient.version>4.5.13</httpclient.version>
-    <spring.version>5.3.20</spring.version>
-    <log4j.version>2.17.0</log4j.version>
-    <org.junit.jupiter.version>5.8.2</org.junit.jupiter.version>
-    <dropwizard-health.version>1.7.2</dropwizard-health.version>
+    <openapiswagger.version>2.2.25</openapiswagger.version>
+
+    <httpclient.version>4.5.14</httpclient.version>
+    <spring.version>6.1.14</spring.version>
+    <log4j.version>2.21.0</log4j.version>
+    <!-- Upgrading jupiter version causes test failures -->
+    <org.junit.jupiter.version>5.9.3</org.junit.jupiter.version>
+    <dropwizard-health.version>1.7.3</dropwizard-health.version>
     <fernet.version>1.5.0</fernet.version>
-    <!--  4.9.3 uses esnext instead of commonjs and it requires changes on how we run Jest tests  -->
-    <!--  upgrade only when we find how to import esnext modules in nodejs  -->
-    <antlr.version>4.10.1</antlr.version>
+    <antlr.version>4.13.2</antlr.version>
 
     <!--   sonar   -Dsonar.login=XXX  -->
     <sonar.projectKey>open-metadata_OpenMetadata</sonar.projectKey>
@@ -123,14 +127,38 @@
     <sonar.organization>open-metadata</sonar.organization>
     <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     <sonar.working.directory>target/sonar</sonar.working.directory>
-    <maven.sonar-plugin.version>3.7.0.1746</maven.sonar-plugin.version>
+    <maven.sonar-plugin.version>3.10.0.2594</maven.sonar-plugin.version>
     <sonar.language>java</sonar.language>
     <sonar.skip>false</sonar.skip>
     <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
-    <testng.version>7.6.0</testng.version>
-    <dropwizard-micrometer.version>2.0.5</dropwizard-micrometer.version>
-    <json-schema-validator.version>1.0.70</json-schema-validator.version>
+    <testng.version>7.6.1</testng.version>
+    <!-- Micrometer upgrade to 3.x requires Dropwizard > 3.x -->
+    <dropwizard-micrometer.version>2.0.9</dropwizard-micrometer.version>
+    <json-schema-validator.version>1.5.2</json-schema-validator.version>
+    <java-jwt.version>4.4.0</java-jwt.version>
+    <jwks-rsa.version>0.22.1</jwks-rsa.version>
+    <jjwt.version>0.9.1</jjwt.version>
+    <rerunner-jupiter.version>2.1.6</rerunner-jupiter.version>
+    <freemarker.version>2.3.33</freemarker.version>
+    <passay.version>1.6.6</passay.version>
+    <bcrypt.version>0.10.2</bcrypt.version>
+    <simplejavamail.version>8.12.2</simplejavamail.version>
+    <dropwizardkafka.version>1.8.0</dropwizardkafka.version>
+    <maven-release-plugin.version>3.0.1</maven-release-plugin.version>
+    <unboundsdk.version>6.0.11</unboundsdk.version>
+    <dropwizard-web.version>1.5.1</dropwizard-web.version>
+    <snakeyaml.version>2.3</snakeyaml.version>
+    <woodstox.version>5.4.0</woodstox.version>
+    <slack.version>1.29.2</slack.version>
+    <spotless.version>2.41.1</spotless.version>
+    <picocli.version>4.7.6</picocli.version>
+    <logback-core.version>1.3.15</logback-core.version>
+    <logback-classic.version>1.3.15</logback-classic.version>
+    <jsonpath.version>2.9.0</jsonpath.version>
+    <everit.version>1.14.4</everit.version>
+    <json-patch.version>1.13</json-patch.version>
   </properties>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -163,13 +191,21 @@
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
-        <version>2.13.3</version>
+        <version>${jackson.version}</version>
       </dependency>
       <dependency>
         <groupId>io.dropwizard</groupId>
         <artifactId>dropwizard-core</artifactId>
         <version>${dropwizard.version}</version>
         <exclusions>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+          </exclusion>
           <exclusion>
             <groupId>org.slf4j</groupId>
             <artifactId>log4j-over-slf4j</artifactId>
@@ -180,6 +216,16 @@
         <groupId>io.dropwizard</groupId>
         <artifactId>dropwizard-assets</artifactId>
         <version>${dropwizard.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>io.dropwizard</groupId>
@@ -195,13 +241,41 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
           </exclusion>
+            <exclusion>
+              <groupId>ch.qos.logback</groupId>
+              <artifactId>logback-core</artifactId>
+            </exclusion>
+            <exclusion>
+              <groupId>ch.qos.logback</groupId>
+              <artifactId>logback-classic</artifactId>
+            </exclusion>
         </exclusions>
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-core</artifactId>
+        <version>${logback-core.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>${logback-classic.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-access</artifactId>
+        <version>${logback-classic.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.dropwizard</groupId>
+        <artifactId>dropwizard-json-logging</artifactId>
+        <version>${dropwizard.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
-        <version>4.2.0</version>
+        <version>4.2.2</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -215,9 +289,9 @@
         <version>${jdbi3.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.jeasy</groupId>
-        <artifactId>easy-rules-core</artifactId>
-        <version>${jeasy.version}</version>
+        <groupId>io.dropwizard.modules</groupId>
+        <artifactId>dropwizard-web</artifactId>
+        <version>${dropwizard-web.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-cli</groupId>
@@ -241,8 +315,8 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>mysql</groupId>
-        <artifactId>mysql-connector-java</artifactId>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
         <version>${mysql.connector.version}</version>
         <exclusions>
           <exclusion>
@@ -250,6 +324,11 @@
             <artifactId>protobuf-java</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-mysql</artifactId>
+        <version>${flyway.version}</version>
       </dependency>
       <dependency>
         <groupId>org.postgresql</groupId>
@@ -262,61 +341,19 @@
         <version>${gson.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.opensearch.client</groupId>
+        <artifactId>opensearch-rest-high-level-client</artifactId>
+        <version>${opensearch.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.elasticsearch.client</groupId>
         <artifactId>elasticsearch-rest-high-level-client</artifactId>
         <version>${elasticsearch.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-analyzers-common</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-backward-codecs</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-grouping</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-memory</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-misc</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-sandbox</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-spatial</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-spatial-extras</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-spatial3d</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-suggest</artifactId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpasyncclient</artifactId>
         <version>${httpasyncclient.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.openapitools.swagger</groupId>
-        <artifactId>swagger-maven-plugin</artifactId>
-        <version>${openapiswagger.version}</version>
       </dependency>
       <dependency>
         <groupId>io.swagger.core.v3</groupId>
@@ -339,11 +376,6 @@
         <version>${openapiswagger.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.springframework.security.kerberos</groupId>
-        <artifactId>spring-security-kerberos-core</artifactId>
-        <version>${spring-security-kerberos-core.version}</version>
-      </dependency>
-      <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
         <version>${httpclient.version}</version>
@@ -357,17 +389,49 @@
         <groupId>io.github.maksymdolgykh.dropwizard</groupId>
         <artifactId>dropwizard-micrometer-core</artifactId>
         <version>${dropwizard-micrometer.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>log4j-over-slf4j</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>io.github.maksymdolgykh.dropwizard</groupId>
         <artifactId>dropwizard-micrometer-jdbi</artifactId>
         <version>${dropwizard-micrometer.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-access</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>log4j-over-slf4j</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <!-- API, java.xml.bind module -->
       <dependency>
         <groupId>jakarta.xml.bind</groupId>
         <artifactId>jakarta.xml.bind-api</artifactId>
-        <version>3.0.1</version>
+        <version>4.0.2</version>
       </dependency>
 
       <!-- Runtime, com.sun.xml.bind module -->
@@ -393,7 +457,7 @@
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-inline</artifactId>
-        <version>${mockito.version}</version>
+        <version>5.2.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -417,7 +481,6 @@
         <artifactId>slf4j-simple</artifactId>
         <version>${slf4j.version}</version>
       </dependency>
-
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
@@ -440,6 +503,11 @@
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>io.github.classgraph</groupId>
+        <artifactId>classgraph</artifactId>
+        <version>4.8.177</version>
+      </dependency>
+      <dependency>
         <groupId>org.reflections</groupId>
         <artifactId>reflections</artifactId>
         <!-- Can't be upgraded to the latest -->
@@ -448,18 +516,12 @@
       <dependency>
           <groupId>org.apache.logging.log4j</groupId>
           <artifactId>log4j-core</artifactId>
-          <version>2.17.2</version>
+          <version>${log4j.version}</version>
       </dependency>
       <dependency>
           <groupId>org.apache.logging.log4j</groupId>
           <artifactId>log4j-api</artifactId>
-          <version>2.17.2</version>
-      </dependency>
-      <dependency>
-        <groupId>com.wix</groupId>
-        <artifactId>wix-embedded-mysql</artifactId>
-        <version>4.6.2</version>
-        <scope>test</scope>
+          <version>${log4j.version}</version>
       </dependency>
       <!-- JSON-P: Java API for JSON Processing (JSR 374) -->
       <dependency>
@@ -472,7 +534,7 @@
       <dependency>
         <groupId>org.apache.johnzon</groupId>
         <artifactId>johnzon-core</artifactId>
-        <version>1.2.18</version>
+        <version>1.2.21</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.datatype</groupId>
@@ -483,6 +545,94 @@
         <groupId>com.lmax</groupId>
         <artifactId>disruptor</artifactId>
         <version>3.4.4</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.resilience4j</groupId>
+        <artifactId>resilience4j-retry</artifactId>
+        <version>2.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>info.picocli</groupId>
+        <artifactId>picocli</artifactId>
+        <version>${picocli.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.erosb</groupId>
+        <artifactId>everit-json-schema</artifactId>
+        <version>${everit.version}</version>
+      </dependency>
+      <!-- avoid security issue https://security.snyk.io/vuln/SNYK-JAVA-ORGECLIPSEJETTY-1090340 -->
+      <dependency>
+        <groupId>org.eclipse.jetty</groupId>
+        <artifactId>jetty-io</artifactId>
+        <!-- 9.x required for Dropwizard 2.1.x -->
+        <version>9.4.56.v20240826</version>
+      </dependency>
+
+      <!-- avoid security issue https://security.snyk.io/vuln/SNYK-JAVA-ORGGLASSFISH-1297098 -->
+      <dependency>
+        <groupId>org.glassfish</groupId>
+        <artifactId>jakarta.el</artifactId>
+        <version>3.0.4</version>
+      </dependency>
+
+      <!-- avoid security issue https://security.snyk.io/vuln/SNYK-JAVA-COMFASTERXMLJACKSONDATAFORMAT-1047329 -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-cbor</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.jayway.jsonpath</groupId>
+        <artifactId>json-path</artifactId>
+        <version>${jsonpath.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>net.minidev</groupId>
+            <artifactId>json-smart</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+    <dependency>
+      <groupId>com.github.java-json-tools</groupId>
+      <artifactId>json-patch</artifactId>
+      <version>${json-patch.version}</version>
+    </dependency>
+      <dependency>
+        <groupId>com.microsoft.azure</groupId>
+        <artifactId>msal4j</artifactId>
+        <version>1.17.2</version>
+        <exclusions>
+          <exclusion>
+            <groupId>net.minidev</groupId>
+            <artifactId>json-smart</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-identity</artifactId>
+        <version>1.14.0</version>
+      </dependency>
+      <!-- avoid security issue https://security.snyk.io/vuln/SNYK-JAVA-ORGYAML-2806360 -->
+      <!-- Enforce consistent snakeyaml version -->
+      <dependency>
+        <groupId>org.yaml</groupId>
+        <artifactId>snakeyaml</artifactId>
+        <version>${snakeyaml.version}</version>
+      </dependency>
+      <!-- Enforce consistent jackson-dataformat-yaml version -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-yaml</artifactId>
+        <version>2.17.2</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -516,7 +666,7 @@
         <enabled>true</enabled>
       </snapshots>
       <id>aws-redshift</id>
-      <url>http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release</url>
+      <url>https://s3.amazonaws.com/redshift-maven-repository/release</url>
     </repository>
   </repositories>
 
@@ -524,15 +674,12 @@
 
     <profile>	<!-- run SCA -->
       <id>static-code-analysis</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
       <build>
         <plugins>
-
           <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
+            <version>${jacoco-plugin.version}</version>
             <executions>
               <execution>
                 <id>prepare-agent</id>
@@ -553,6 +700,7 @@
           <plugin>
             <groupId>org.sonarsource.scanner.maven</groupId>
             <artifactId>sonar-maven-plugin</artifactId>
+            <version>${maven.sonar-plugin.version}</version>
             <executions>
               <execution>
                 <id>sonar-verify-execution</id>
@@ -567,13 +715,70 @@
       </build>
     </profile>
 
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>${maven-source-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>${maven-javadoc-plugin.version}</version>
+            <configuration>
+              <doclint>none</doclint>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.0.1</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
   </profiles>
   <reporting>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jxr-plugin</artifactId>
-        <version>3.1.1</version>
+        <version>3.3.0</version>
       </plugin>
     </plugins>
   </reporting>
@@ -581,108 +786,135 @@
     <pluginManagement>
       <plugins>
         <plugin>
-          <groupId>com.theoryinpractise</groupId>
-          <artifactId>googleformatter-maven-plugin</artifactId>
-          <version>1.7.3</version>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>3.1.0</version>
           <executions>
             <execution>
-              <id>reformat-sources</id>
-              <configuration>
-                <includeStale>false</includeStale>
-                <style>GOOGLE</style>
-                <formatMain>true</formatMain>
-                <formatTest>true</formatTest>
-                <filterModified>false</filterModified>
-                <skip>false</skip>
-                <fixImports>true</fixImports>
-                <maxLineLength>120</maxLineLength>
-              </configuration>
+              <id>enforce-maven</id>
               <goals>
-                <goal>format</goal>
+                <goal>enforce</goal>
               </goals>
-              <phase>process-sources</phase>
+              <configuration>
+                <rules>
+                  <requireMavenVersion>
+                    <version>3.8</version>
+                  </requireMavenVersion>
+                </rules>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>com.theoryinpractise</groupId>
+          <artifactId>googleformatter-maven-plugin</artifactId>
+          <version>1.7.5</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.2.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>3.0.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.0.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>3.4.2</version>
+        </plugin>
+        <plugin>
+          <groupId>io.openapitools.swagger</groupId>
+          <artifactId>swagger-maven-plugin</artifactId>
+          <version>2.1.6</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.12.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven-dependency-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <version>${spotless.version}</version>
+          <configuration>
+            <java>
+              <includes>
+                <include>src/main/java/**/*.java</include>
+                <include>src/test/java/**/*.java</include>
+              </includes>
+              <googleJavaFormat>
+                <style>GOOGLE</style>
+                <reflowLongStrings>false</reflowLongStrings>
+                <formatJavadoc>false</formatJavadoc>
+                <groupArtifact>com.google.googlejavaformat:google-java-format</groupArtifact>
+              </googleJavaFormat>
+              <removeUnusedImports/>
+            </java>
+          </configuration>
+          <executions>
+            <execution>
+              <goals>
+                <goal>check</goal>
+              </goals>
             </execution>
           </executions>
         </plugin>
         <plugin>
            <groupId>org.apache.maven.plugins</groupId>
            <artifactId>maven-checkstyle-plugin</artifactId>
-           <version>3.1.2</version>
+           <version>3.2.0</version>
            <configuration>
              <configLocation>./checkstyle/checkstyle.xml</configLocation>
                <includeTestSourceDirectory>true</includeTestSourceDirectory>
            </configuration>
-           <dependencies>
-            <dependency>
-              <groupId>com.puppycrawl.tools</groupId>
-              <artifactId>checkstyle</artifactId>
-              <version>10.3</version>
-            </dependency>
-          </dependencies>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-release-plugin</artifactId>
-          <version>2.5</version>
+          <version>${maven-release-plugin.version}</version>
           <configuration>
+            <!--suppress UnresolvedMavenProperty -->
             <arguments>-Dgpg.passphrase=${gpg.passphrase}</arguments>
           </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.10.1</version>
           <configuration>
-            <source>11</source>
-            <target>11</target>
+            <source>17</source>
+            <target>17</target>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+              </path>
+            </annotationProcessorPaths>
           </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
           <version>${maven-jar-plugin.version}</version>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-source-plugin</artifactId>
-          <version>${maven-src-plugin.version}</version>
-          <executions>
-            <execution>
-              <id>attach-sources</id>
-              <goals>
-                <goal>jar-no-fork</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-javadoc-plugin</artifactId>
-          <version>2.10.3</version>
-          <configuration>
-            <additionalparam>-Xdoclint:none</additionalparam>
-          </configuration>
-          <executions>
-            <execution>
-              <id>attach-javadocs</id>
-              <goals>
-                <goal>jar</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-gpg-plugin</artifactId>
-          <version>1.5</version>
-          <executions>
-            <execution>
-              <id>sign-artifacts</id>
-              <phase>verify</phase>
-              <goals>
-                <goal>sign</goal>
-              </goals>
-            </execution>
-          </executions>
         </plugin>
 
         <!-- Test plugins -->
@@ -692,9 +924,9 @@
           <version>${maven-surefire.version}</version>
           <configuration>
             <includes>
-              <include>org.openmetadata.catalog.resources.**.*.java</include>
-              <include>org.openmetadata.catalog.util.*.java</include>
-              <include>org.openmetadata.catalog.EnumBackwardCompatibilityTest</include>
+              <include>org.openmetadata.service.resources.**.*.java</include>
+              <include>org.openmetadata.service.util.*.java</include>
+              <include>org.openmetadata.service.EnumBackwardCompatibilityTest</include>
             </includes>
           </configuration>
         </plugin>
@@ -737,7 +969,40 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-maven</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>3.6.0</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-clean-plugin</artifactId>
+        <version>3.2.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
+        <version>${maven-release-plugin.version}</version>
         <configuration>
           <autoVersionSubmodules>true</autoVersionSubmodules>
           <tagNameFormat>v@{project.version}</tagNameFormat>
@@ -746,7 +1011,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>versions-maven-plugin</artifactId>
-        <version>2.5</version>
+        <version>2.13.0</version>
         <configuration>
           <generateBackupPoms>false</generateBackupPoms>
         </configuration>
@@ -761,10 +1026,6 @@
           <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
           <autoReleaseAfterClose>true</autoReleaseAfterClose>
         </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.0</version>
       </plugin>
     </plugins>
   </build>

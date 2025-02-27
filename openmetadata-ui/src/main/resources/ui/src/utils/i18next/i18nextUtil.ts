@@ -1,0 +1,109 @@
+/*
+ *  Copyright 2022 Collate.
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+import i18next, { InitOptions } from 'i18next';
+import { map, upperCase } from 'lodash';
+import deDe from '../../locale/languages/de-de.json';
+import enUS from '../../locale/languages/en-us.json';
+import esES from '../../locale/languages/es-es.json';
+import frFR from '../../locale/languages/fr-fr.json';
+import glES from '../../locale/languages/gl-es.json';
+import heHE from '../../locale/languages/he-he.json';
+import jaJP from '../../locale/languages/ja-jp.json';
+import koKR from '../../locale/languages/ko-kr.json';
+import mrIN from '../../locale/languages/mr-in.json';
+import nlNL from '../../locale/languages/nl-nl.json';
+import prPR from '../../locale/languages/pr-pr.json';
+import ptBR from '../../locale/languages/pt-br.json';
+import ptPT from '../../locale/languages/pt-pt.json';
+import ruRU from '../../locale/languages/ru-ru.json';
+import thTH from '../../locale/languages/th-th.json';
+import zhCN from '../../locale/languages/zh-cn.json';
+
+export enum SupportedLocales {
+  English = 'en-US',
+  Français = 'fr-FR',
+  简体中文 = 'zh-CN',
+  日本語 = 'ja-JP',
+  'Português (Brasil)' = 'pt-BR',
+  'Português (Portugal)' = 'pt-PT',
+  Español = 'es-ES',
+  Galego = 'gl-ES',
+  Русский = 'ru-RU',
+  Deutsch = 'de-DE',
+  Hebrew = 'he-HE',
+  Nederlands = 'nl-NL',
+  Persian = 'pr-PR',
+  Thai = 'th-TH',
+  मराठी = 'mr-IN',
+  한국어 = 'ko-KR',
+}
+
+export const languageSelectOptions = map(SupportedLocales, (value, key) => ({
+  label: `${key} - ${upperCase(value.split('-')[0])}`,
+  key: value,
+}));
+
+// Returns i18next options
+export const getInitOptions = (): InitOptions => {
+  return {
+    supportedLngs: Object.values(SupportedLocales),
+    resources: {
+      'en-US': { translation: enUS },
+      'fr-FR': { translation: frFR },
+      'zh-CN': { translation: zhCN },
+      'ja-JP': { translation: jaJP },
+      'pt-BR': { translation: ptBR },
+      'pt-PT': { translation: ptPT },
+      'es-ES': { translation: esES },
+      'gl-ES': { translation: glES },
+      'ru-RU': { translation: ruRU },
+      'de-DE': { translation: deDe },
+      'he-HE': { translation: heHE },
+      'nl-NL': { translation: nlNL },
+      'pr-PR': { translation: prPR },
+      'th-TH': { translation: thTH },
+      'mr-IN': { translation: mrIN },
+      'ko-KR': { translation: koKR },
+    },
+    fallbackLng: ['en-US'],
+    detection: {
+      order: ['querystring', 'cookie', 'navigator'],
+      caches: ['cookie'], // cache user language on
+    },
+    interpolation: {
+      escapeValue: false, // XSS safety provided by React
+    },
+    missingKeyHandler: (_lngs, _ns, key) =>
+      // eslint-disable-next-line no-console
+      console.error(`i18next: key not found "${key}"`),
+    saveMissing: true, // Required for missing key handler
+  };
+};
+
+// Returns the current locale to use in cronstrue
+export const getCurrentLocaleForConstrue = () => {
+  // For cronstrue, we need to pass the locale in the format 'pt_BR' and not 'pt-BR'
+  // for some selected languages
+  if (
+    [
+      SupportedLocales['Português (Brasil)'],
+      SupportedLocales['Português (Portugal)'],
+      SupportedLocales.简体中文,
+    ].includes(i18next.resolvedLanguage as SupportedLocales)
+  ) {
+    return i18next.resolvedLanguage.replaceAll('-', '_');
+  }
+
+  return i18next.resolvedLanguage.split('-')[0];
+};

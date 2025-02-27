@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -14,77 +14,88 @@
 import { Tabs } from 'antd';
 import { Change } from 'diff';
 import { isEqual } from 'lodash';
-import { EditorContentRef } from 'Models';
-import React, { useState } from 'react';
-import RichTextEditor from '../../../components/common/rich-text-editor/RichTextEditor';
-import RichTextEditorPreviewer from '../../../components/common/rich-text-editor/RichTextEditorPreviewer';
+import React, { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import RichTextEditor from '../../../components/common/RichTextEditor/RichTextEditor';
+import { EditorContentRef } from '../../../components/common/RichTextEditor/RichTextEditor.interface';
+import RichTextEditorPreviewerV1 from '../../../components/common/RichTextEditor/RichTextEditorPreviewerV1';
+import { isDescriptionContentEmpty } from '../../../utils/BlockEditorUtils';
 import { getDescriptionDiff } from '../../../utils/TasksUtils';
 import { DiffView } from './DiffView';
 
 interface Props {
-  description: string;
+  value: string;
   suggestion: string;
-  markdownRef: React.MutableRefObject<EditorContentRef | undefined>;
   placeHolder?: string;
   onChange?: (value: string) => void;
 }
 
 export const DescriptionTabs = ({
-  description,
+  value = '',
   suggestion,
-  markdownRef,
   placeHolder,
   onChange,
 }: Props) => {
+  const { t } = useTranslation();
   const { TabPane } = Tabs;
-
+  const [description] = useState(value);
   const [diffs, setDiffs] = useState<Change[]>([]);
   const [activeTab, setActiveTab] = useState<string>('3');
+  const markdownRef = useRef<EditorContentRef>({} as EditorContentRef);
 
-  const onTabChange = (key: string) => {
-    setActiveTab(key);
-    if (isEqual(key, '2')) {
-      const newDescription = markdownRef.current?.getEditorContent();
-      if (newDescription) {
-        setDiffs(getDescriptionDiff(description, newDescription));
+  const onTabChange = useCallback(
+    (key: string) => {
+      setActiveTab(key);
+      if (isEqual(key, '2')) {
+        const newDescription = markdownRef.current?.getEditorContent?.();
+        const isEmptyDescription = isDescriptionContentEmpty(newDescription);
+        if (newDescription) {
+          const diff = getDescriptionDiff(
+            description,
+            isEmptyDescription ? '' : newDescription
+          );
+          setDiffs(diff);
+        }
+      } else {
+        setDiffs([]);
       }
-    } else {
-      setDiffs([]);
-    }
-  };
+    },
+    [markdownRef]
+  );
 
   return (
     <Tabs
       activeKey={activeTab}
       className="ant-tabs-description"
+      data-testid="tabs"
       size="small"
       type="card"
       onChange={onTabChange}>
-      <TabPane key="1" tab="Current">
-        <div className="tw-flex tw-border tw-border-main tw-rounded tw-mb-4 tw-mt-4">
+      <TabPane data-testid="current-tab" key="1" tab="Current">
+        <div className="border border-main rounded-4 p-sm m-t-sm">
           {description.trim() ? (
-            <RichTextEditorPreviewer
-              className="tw-p-2"
+            <RichTextEditorPreviewerV1
               enableSeeMoreVariant={false}
               markdown={description}
             />
           ) : (
-            <span className="tw-no-description tw-p-2">No description </span>
+            <span className="text-grey-muted">
+              {t('label.no-entity', { entity: t('label.description') })}
+            </span>
           )}
         </div>
       </TabPane>
-      <TabPane key="2" tab="Diff">
+      <TabPane data-testid="diff-tab" key="2" tab="Diff">
         <DiffView
-          className="tw-border tw-border-main tw-p-2 tw-rounded tw-my-3"
+          className="border border-main rounded-4 p-sm m-t-sm"
           diffArr={diffs}
         />
       </TabPane>
-      <TabPane key="3" tab="New">
+      <TabPane data-testid="new-tab" key="3" tab="New">
         <RichTextEditor
-          className="tw-my-0"
-          height="208px"
+          className="m-t-sm"
           initialValue={suggestion}
-          placeHolder={placeHolder ?? 'Update description'}
+          placeHolder={placeHolder ?? t('label.update-description')}
           ref={markdownRef}
           onTextChange={onChange}
         />

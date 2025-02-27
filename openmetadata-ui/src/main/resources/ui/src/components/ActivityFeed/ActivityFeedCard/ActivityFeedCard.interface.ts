@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -13,9 +13,10 @@
 
 import { HTMLAttributes } from 'react';
 import { ReactionOperation } from '../../../enums/reactions.enum';
+import { AnnouncementDetails } from '../../../generated/api/feed/createThread';
 import {
   Post,
-  TaskDetails,
+  Thread,
   ThreadType,
 } from '../../../generated/entity/feed/thread';
 import { ReactionType } from '../../../generated/type/reaction';
@@ -25,6 +26,7 @@ export interface ConfirmState {
   state: boolean;
   threadId: string | undefined;
   postId: string | undefined;
+  isThread: boolean;
 }
 export interface ActivityFeedCardProp extends HTMLAttributes<HTMLDivElement> {
   feed: Post;
@@ -37,15 +39,18 @@ export interface ActivityFeedCardProp extends HTMLAttributes<HTMLDivElement> {
   lastReplyTimeStamp?: number;
   isFooterVisible?: boolean;
   isThread?: boolean;
-  taskDetails?: TaskDetails;
+  task: Thread;
+  announcementDetails?: AnnouncementDetails;
   onThreadSelect?: (id: string) => void;
   onConfirmation?: (data: ConfirmState) => void;
   updateThreadHandler: ThreadUpdatedFunc;
   onReply?: () => void;
+  editAnnouncementPermission?: boolean;
+  showUserAvatar?: boolean;
 }
 export interface FeedHeaderProp
   extends HTMLAttributes<HTMLDivElement>,
-    Pick<ActivityFeedCardProp, 'isEntityFeed' | 'feedType' | 'taskDetails'> {
+    Pick<ActivityFeedCardProp, 'isEntityFeed' | 'feedType' | 'task'> {
   createdBy: string;
   timeStamp?: number;
   entityType: string;
@@ -54,13 +59,16 @@ export interface FeedHeaderProp
 }
 export interface FeedBodyProp
   extends HTMLAttributes<HTMLDivElement>,
-    Pick<ActivityFeedCardProp, 'isThread'> {
+    Pick<ActivityFeedCardProp, 'isThread' | 'announcementDetails'> {
   message: string;
   reactions: Post['reactions'];
   onReactionSelect: (
     reactionType: ReactionType,
     reactionOperation: ReactionOperation
   ) => void;
+  isEditPost: boolean;
+  onPostUpdate: (message: string) => void;
+  onCancelPostUpdate: () => void;
 }
 export interface FeedFooterProp
   extends HTMLAttributes<HTMLDivElement>,

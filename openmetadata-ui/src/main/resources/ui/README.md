@@ -1,68 +1,96 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# OpenMetadata UI
 
-## Available Scripts
+> This guide will help you run OpenMetadata UI locally in dev mode.
 
-In the project directory, you can run:
+## Pre-requisites
 
-### `npm run start`
+Before proceeding, ensure that you have installed the node and yarn with the versions given below.
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```
+"node": ">=18.19.0",
+"yarn": "^1.22.0"
+```
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+Install [Node](https://nodejs.org/en/download/) and [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/).<br />
 
-### `npm run test`
+Install ANTLR using our recipes via
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```shell
+sudo make install_antlr_cli
+```
 
-### `npm run build`
+Using the command below, spin up the server locally from the directory `openmetadata-dist/target/openmetadata-*-SNAPSHOT`
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```shell
+./bin/openmetadata-server-start.sh conf/openmetadata.yaml
+```
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+> If you don't have distributions generated or don't see `target` directory inside the `openmetadata-dist` then follow [this](https://docs.open-metadata.org/developers/contribute/build-code-and-run-tests/openmetadata-server#create-a-distribution-packaging) guide to create a distribution.
+>
+> Since typescript is heavily used in the OpenMetadata project, we generate the typescript types and the interface from JSON schema. We use the `QuickType` tool to generate the typescript types and interfaces. You can view the complete instructions [here](https://docs.open-metadata.org/developers/contribute/build-code-and-run-tests/generate-typescript-types-from-json-schema).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Alternatively, you can connect to an already started OpenMetadata Server to develop UI by setting the `DEV_SERVER_TARGET` environment variable.
+```shell
+# For example, the openmetedata server service launched with docker compose:
+# https://github.com/open-metadata/OpenMetadata/blob/main/docker/development/docker-compose.yml
+export DEV_SERVER_TARGET=http://openmetadata-server:8585/
 
-### `npm run eject`
+# Follow the steps to Run OpenMetadata UI...
+make yarn_start_dev_ui
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Steps to Run OpenMetadata UI
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Once the node and yarn are installed in the system, you can perform the following steps to run OpenMetadata UI.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+**Step 1**: Run the given command to install the required dependencies.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+**Note**: It’s a one-time task to install dependencies. If there are any changes in the `package.json` file, the following steps will have to be performed again.
 
-## Learn More
+```shell
+# installing dependencies
+> make yarn_install_cache
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+**Step 2**: Start the UI locally
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```shell
+# starting the UI locally
+> make yarn_start_dev_ui
+```
 
-### Code Splitting
+**Step 3**: Visit [localhost:3000](http://localhost:3000/) to access the OpenMetadata UI.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+## How to Add Language Support
 
-### Analyzing the Bundle Size
+To add support for a new language in our internationalization setup using `react-i18next` and `i18next`, please follow the steps below:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+### Create a Language JSON File
 
-### Making a Progressive Web App
+First, create a new JSON file for the language you want to add in the `openmetadata-ui/src/main/resources/ui/src/locale/languages` directory.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+For example, if you want to add support for the `French` language, you can create a file called `fr-fr.json` in the languages directory:
 
-### Advanced Configuration
+```shell
+# Navigate to the ui/src/locale/languages directory
+cd openmetadata-ui/src/main/resources/ui/src/locale/languages
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+# Create the French language file
+touch fr-fr.json
 
-### Deployment
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+### Sync the Language File with the Primary Language
 
-### `npm run build` fails to minify
+To ensure consistency with our primary language, which is `en-us`, it is necessary to synchronize any newly added language files. This can be done by copying the content from the `en-us.json` file and translating it accordingly.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+To copy the contents of en-us.json and add it to your translation JSON file, follow these steps:
+
+- Go to [en-us.json](https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-ui/src/main/resources/ui/src/locale/languages/en-us.json)
+- Copy the content of file
+- Open your translation JSON file.
+- Paste the copied text into your translation JSON file.
+
+You can refer to the image below for a visual guide:
+
+![image](https://user-images.githubusercontent.com/59080942/227428589-5770b06e-f88d-4a8c-8c45-35ed12f0c4d2.png)

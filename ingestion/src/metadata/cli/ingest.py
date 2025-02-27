@@ -10,41 +10,43 @@
 #  limitations under the License.
 
 """
-Ingest utility for the metadata CLI
+Profiler utility for the metadata CLI
 """
-import pathlib
 import sys
 import traceback
-
-import click
-from pydantic import ValidationError
+from pathlib import Path
 
 from metadata.config.common import load_config_file
-from metadata.ingestion.api.workflow import Workflow
-from metadata.utils.logger import cli_logger
+from metadata.generated.schema.entity.services.ingestionPipelines.ingestionPipeline import (
+    PipelineType,
+)
+from metadata.utils.logger import cli_logger, redacted_config
+from metadata.workflow.metadata import MetadataWorkflow
+from metadata.workflow.workflow_init_error_handler import WorkflowInitErrorHandler
 
 logger = cli_logger()
 
 
-def run_ingest(config_path: str) -> None:
+def run_ingest(config_path: Path) -> None:
     """
     Run the ingestion workflow from a config path
-    to a JSON file
+    to a JSON or YAML file
     :param config_path: Path to load JSON config
     """
 
-    config_file = pathlib.Path(config_path)
-    config_dict = load_config_file(config_file)
-
+    config_dict = None
     try:
-        workflow = Workflow.create(config_dict)
-        logger.debug(f"Using config: {workflow.config}")
-    except ValidationError as e:
-        click.echo(e, err=True)
+        config_dict = load_config_file(config_path)
+        logger.debug("Using workflow config:\n%s", redacted_config(config_dict))
+        workflow = MetadataWorkflow.create(config_dict)
+    except Exception as exc:
         logger.debug(traceback.format_exc())
+        WorkflowInitErrorHandler.print_init_error(
+            exc, config_dict, PipelineType.metadata
+        )
         sys.exit(1)
 
     workflow.execute()
     workflow.stop()
-    ret = workflow.print_status()
-    sys.exit(ret)
+    workflow.print_status()
+    workflow.raise_from_status()

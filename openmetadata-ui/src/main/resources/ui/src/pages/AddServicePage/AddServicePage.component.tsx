@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,36 +11,38 @@
  *  limitations under the License.
  */
 
-import { AxiosError, AxiosResponse } from 'axios';
+import { AxiosError } from 'axios';
 import { startCase } from 'lodash';
+import { ServicesUpdateRequest, ServiceTypes } from 'Models';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import {
-  addIngestionPipeline,
-  checkAirflowStatus,
-  deployIngestionPipelineById,
-  getIngestionPipelineByFqn,
-} from '../../axiosAPIs/ingestionPipelineAPI';
-import { postService } from '../../axiosAPIs/serviceAPI';
-import AddService from '../../components/AddService/AddService.component';
-import { TitleBreadcrumbProps } from '../../components/common/title-breadcrumb/title-breadcrumb.interface';
-import PageContainerV1 from '../../components/containers/PageContainerV1';
+import { TitleBreadcrumbProps } from '../../components/common/TitleBreadcrumb/TitleBreadcrumb.interface';
+import AddService from '../../components/Settings/Services/AddService/AddService.component';
 import {
   DEPLOYED_PROGRESS_VAL,
   INGESTION_PROGRESS_END_VAL,
   INGESTION_PROGRESS_START_VAL,
 } from '../../constants/constants';
+import { GlobalSettingsMenuCategory } from '../../constants/GlobalSettings.constants';
 import { IngestionActionMessage } from '../../enums/ingestion.enum';
 import { ServiceCategory } from '../../enums/service.enum';
 import { CreateIngestionPipeline } from '../../generated/api/services/ingestionPipelines/createIngestionPipeline';
 import { DataObj } from '../../interface/service.interface';
-import jsonData from '../../jsons/en';
-import { getServicesWithTabPath } from '../../utils/RouterUtils';
+import {
+  addIngestionPipeline,
+  deployIngestionPipelineById,
+  getIngestionPipelineByFqn,
+} from '../../rest/ingestionPipelineAPI';
+import { postService } from '../../rest/serviceAPI';
+import { getSettingPath } from '../../utils/RouterUtils';
+import { getServiceRouteFromServiceType } from '../../utils/ServiceUtils';
 import { showErrorToast } from '../../utils/ToastUtils';
 
 const AddServicePage = () => {
-  const { serviceCategory } = useParams<{ [key: string]: string }>();
-  const [newServiceData, setNewServiceData] = useState<DataObj>();
+  const { t } = useTranslation();
+  const { serviceCategory } = useParams<{ serviceCategory: string }>();
+  const [newServiceData, setNewServiceData] = useState<ServicesUpdateRequest>();
   const [ingestionProgress, setIngestionProgress] = useState(0);
   const [isIngestionCreated, setIsIngestionCreated] = useState(false);
   const [isIngestionDeployed, setIsIngestionDeployed] = useState(false);
@@ -58,42 +60,9 @@ const AddServicePage = () => {
     setAddIngestion(value);
   };
 
-  const onAirflowStatusCheck = (): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      checkAirflowStatus()
-        .then((res) => {
-          if (res.status === 200) {
-            resolve();
-          } else {
-            reject();
-          }
-        })
-        .catch(() => reject());
-    });
-  };
-
-  const onAddServiceSave = (data: DataObj) => {
-    return new Promise<void>((resolve, reject) => {
-      postService(serviceCategory, data)
-        .then((res: AxiosResponse) => {
-          if (res.data) {
-            setNewServiceData(res.data);
-            resolve();
-          } else {
-            showErrorToast(
-              jsonData['api-error-messages']['create-service-error']
-            );
-            reject();
-          }
-        })
-        .catch((err: AxiosError) => {
-          showErrorToast(
-            err,
-            jsonData['api-error-messages']['create-service-error']
-          );
-          reject();
-        });
-    });
+  const onAddServiceSave = async (data: DataObj) => {
+    const res = await postService(serviceCategory, data);
+    setNewServiceData(res);
   };
 
   const onIngestionDeploy = (id?: string) => {
@@ -113,7 +82,10 @@ const AddServicePage = () => {
           setShowIngestionButton(true);
           setIngestionAction(IngestionActionMessage.DEPLOYING_ERROR);
           showErrorToast(
-            err || jsonData['api-error-messages']['deploy-ingestion-error']
+            err ||
+              t('server.deploy-entity-error', {
+                entity: t('label.ingestion-workflow-lowercase'),
+              })
           );
         })
         .finally(() => resolve());
@@ -125,36 +97,40 @@ const AddServicePage = () => {
 
     return new Promise<void>((resolve, reject) => {
       return addIngestionPipeline(data)
-        .then((res: AxiosResponse) => {
-          if (res.data) {
-            setIngestionId(res.data.id);
-            onIngestionDeploy(res.data.id).finally(() => resolve());
+        .then((res) => {
+          if (res) {
+            setIngestionId(res.id ?? '');
+            onIngestionDeploy(res.id).finally(() => resolve());
           } else {
             showErrorToast(
-              jsonData['api-error-messages']['create-ingestion-error']
+              t('server.create-entity-error', {
+                entity: t('label.ingestion-workflow-lowercase'),
+              })
             );
             reject();
           }
         })
         .catch((err: AxiosError) => {
           getIngestionPipelineByFqn(`${newServiceData?.name}.${data.name}`)
-            .then((res: AxiosResponse) => {
-              if (res.data) {
+            .then((res) => {
+              if (res) {
                 resolve();
                 showErrorToast(
                   err,
-                  jsonData['api-error-messages']['deploy-ingestion-error']
+                  t('server.deploy-entity-error', {
+                    entity: t('label.ingestion-workflow-lowercase'),
+                  })
                 );
               } else {
-                throw jsonData['api-error-messages'][
-                  'unexpected-server-response'
-                ];
+                throw t('server.unexpected-response');
               }
             })
             .catch(() => {
               showErrorToast(
                 err,
-                jsonData['api-error-messages']['create-ingestion-error']
+                t('server.create-entity-error', {
+                  entity: t('label.ingestion-workflow-lowercase'),
+                })
               );
               reject();
             });
@@ -166,10 +142,15 @@ const AddServicePage = () => {
     setSlashedBreadcrumb([
       {
         name: startCase(serviceCategory),
-        url: getServicesWithTabPath(serviceCategory),
+        url: getSettingPath(
+          GlobalSettingsMenuCategory.SERVICES,
+          getServiceRouteFromServiceType(serviceCategory as ServiceTypes)
+        ),
       },
       {
-        name: addIngestion ? 'Add New Ingestion' : 'Add New Service',
+        name: t('label.add-new-entity', {
+          entity: t(addIngestion ? 'label.ingestion' : 'label.service'),
+        }),
         url: '',
         activeTitle: true,
       },
@@ -177,26 +158,21 @@ const AddServicePage = () => {
   }, [serviceCategory, addIngestion]);
 
   return (
-    <PageContainerV1>
-      <div className="tw-self-center">
-        <AddService
-          addIngestion={addIngestion}
-          handleAddIngestion={handleAddIngestion}
-          ingestionAction={ingestionAction}
-          ingestionProgress={ingestionProgress}
-          isIngestionCreated={isIngestionCreated}
-          isIngestionDeployed={isIngestionDeployed}
-          newServiceData={newServiceData}
-          serviceCategory={serviceCategory as ServiceCategory}
-          showDeployButton={showIngestionButton}
-          slashedBreadcrumb={slashedBreadcrumb}
-          onAddIngestionSave={onAddIngestionSave}
-          onAddServiceSave={onAddServiceSave}
-          onAirflowStatusCheck={onAirflowStatusCheck}
-          onIngestionDeploy={onIngestionDeploy}
-        />
-      </div>
-    </PageContainerV1>
+    <AddService
+      addIngestion={addIngestion}
+      handleAddIngestion={handleAddIngestion}
+      ingestionAction={ingestionAction}
+      ingestionProgress={ingestionProgress}
+      isIngestionCreated={isIngestionCreated}
+      isIngestionDeployed={isIngestionDeployed}
+      newServiceData={newServiceData}
+      serviceCategory={serviceCategory as ServiceCategory}
+      showDeployButton={showIngestionButton}
+      slashedBreadcrumb={slashedBreadcrumb}
+      onAddIngestionSave={onAddIngestionSave}
+      onAddServiceSave={onAddServiceSave}
+      onIngestionDeploy={onIngestionDeploy}
+    />
   );
 };
 

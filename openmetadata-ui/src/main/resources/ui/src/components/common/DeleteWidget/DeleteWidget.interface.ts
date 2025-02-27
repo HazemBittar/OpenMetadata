@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 Collate
+ *  Copyright 2022 Collate.
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
@@ -11,31 +11,42 @@
  *  limitations under the License.
  */
 
+import { ReactNode } from 'react';
+import { EntityType } from '../../../enums/entity.enum';
+
+export interface DeleteOption {
+  title: string;
+  description: ReactNode;
+  type: DeleteType;
+  isAllowed: boolean;
+}
+
 export interface DeleteWidgetModalProps {
   visible: boolean;
   onCancel: () => void;
   allowSoftDelete?: boolean;
+  deleteMessage?: string;
+  softDeleteMessagePostFix?: string;
+  hardDeleteMessagePostFix?: string;
   entityName: string;
-  entityType: string;
+  entityType: EntityType;
   isAdminUser?: boolean;
-  entityId: string;
+  entityId?: string;
+  prepareType?: boolean;
   isRecursiveDelete?: boolean;
-  afterDeleteAction?: () => void;
-}
-
-export interface DeleteSectionProps {
-  allowSoftDelete?: boolean;
-  entityName: string;
-  entityType: string;
-  deletEntityMessage?: string;
-  hasPermission: boolean;
-  isAdminUser?: boolean;
-  entityId: string;
-  isRecursiveDelete?: boolean;
-  afterDeleteAction?: () => void;
+  successMessage?: string;
+  deleteOptions?: DeleteOption[];
+  afterDeleteAction?: (isSoftDelete?: boolean, version?: number) => void;
+  onDelete?: (data: DeleteWidgetFormFields) => void;
+  isDeleting?: boolean;
 }
 
 export enum DeleteType {
   SOFT_DELETE = 'soft-delete',
   HARD_DELETE = 'hard-delete',
 }
+
+export type DeleteWidgetFormFields = {
+  deleteType: DeleteType;
+  deleteTextInput: string;
+};
